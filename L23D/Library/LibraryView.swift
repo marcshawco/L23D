@@ -83,8 +83,12 @@ struct LibraryView: View {
                     ObjectCaptureFlowView(folder: scan.folder) { outcome in
                         handleCaptureOutcome(outcome, for: scan)
                     }
-                case .personHelper, .personSpin:
+                case .personHelper:
                     HelperCaptureView(folder: scan.folder) { outcome in
+                        handleCaptureOutcome(outcome, for: scan)
+                    }
+                case .personSpin:
+                    SpinCaptureView(folder: scan.folder) { outcome in
                         handleCaptureOutcome(outcome, for: scan)
                     }
                 }

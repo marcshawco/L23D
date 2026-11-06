@@ -52,7 +52,7 @@ struct ScanStoreTests {
     }
 
     @Test func scanModeFlags() {
-        #expect(ScanMode.object.isAvailable)
+        #expect(ScanMode.allCases.allSatisfy { $0.isAvailable })
         #expect(ScanMode(rawValue: "personSpin") == .personSpin)
     }
 }

@@ -173,3 +173,57 @@ struct PersonFrameStoreTests {
         #expect(folder.imageCount == 0)
     }
 }
+
+struct SpinPlanTests {
+    @Test func cuesRunFromStartToStop() {
+        let plan = SpinPlan(spinDuration: 30)
+        #expect(plan.cues.first?.time == 0)
+        #expect(plan.cues.last?.time == 30)
+        #expect(plan.cues.last?.text == "Stop.")
+        #expect(plan.cues.map(\.time) == plan.cues.map(\.time).sorted())
+    }
+
+    @Test func slicesCoverTheWholeTurn() {
+        let plan = SpinPlan(spinDuration: 30)
+        #expect(plan.slice(at: 0) == 0)
+        #expect(plan.slice(at: 15) == CoverageTracker.slices / 2)
+        #expect(plan.slice(at: 30) == CoverageTracker.slices - 1)
+        #expect(plan.slice(at: 99) == CoverageTracker.slices - 1)
+        #expect(plan.slice(at: -1) == 0)
+        #expect(plan.expectedShots == 75)
+        #expect(plan.progress(at: 45) == 1)
+    }
+}
+
+struct SpinGravityTests {
+    @Test func uprightPhoneMatchesARKitConvention() {
+        // Phone held upright in portrait: CoreMotion gravity points to the bottom of the phone.
+        let fromMotion = PersonFrameStore.cameraGravity(fromDevice: [0, -1, 0])
+        // ARKit camera for the same pose: camera x axis points down in the world.
+        var pose = matrix_identity_float4x4
+        pose.columns.0 = [0, -1, 0, 0] // camera x = world down
+        pose.columns.1 = [1, 0, 0, 0]  // camera y = world right
+        pose.columns.2 = [0, 0, 1, 0]
+        let fromPose = PersonFrameStore.gravity(cameraTransform: pose)
+        #expect(simd_distance(fromMotion, fromPose) < 1e-9)
+        #expect(fromMotion == [1, 0, 0])
+    }
+}
+
+struct BGRASharpnessTests {
+    @Test func colorPhotosAreScored() {
+        let size = 200
+        let buffer = PersonSampleSequence.pixelBuffer(width: size, height: size, format: kCVPixelFormatType_32BGRA)!
+        CVPixelBufferLockBaseAddress(buffer, [])
+        let base = CVPixelBufferGetBaseAddress(buffer)!.assumingMemoryBound(to: UInt8.self)
+        let rowBytes = CVPixelBufferGetBytesPerRow(buffer)
+        for y in 0..<size {
+            for x in 0..<size {
+                let v: UInt8 = ((x / 6 + y / 6) % 2 == 0) ? 255 : 0
+                for c in 0..<4 { base[y * rowBytes + x * 4 + c] = v }
+            }
+        }
+        CVPixelBufferUnlockBaseAddress(buffer, [])
+        #expect(FrameQuality.sharpness(of: buffer) > FrameQuality.sharpnessThreshold)
+    }
+}

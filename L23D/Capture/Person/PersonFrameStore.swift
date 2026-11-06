@@ -18,6 +18,8 @@ struct PersonCaptureManifest: Codable, Sendable, Equatable {
         var depthHeight: Int
         /// ARKit camera-to-world transform, 16 floats column-major (also useful for a later Mac HQ build).
         var cameraTransform: [Float]?
+        /// Gravity in camera space (x right, y up, z back), in g. Used when there is no pose (tripod).
+        var gravity: [Double]? = nil
         var ring: Int
         var slice: Int
     }
@@ -45,7 +47,7 @@ final class PersonFrameStore {
     @discardableResult
     func add(
         image: CVPixelBuffer, mask: PersonMasker.Mask?, depth: PersonMasker.DepthMap?,
-        cameraTransform: simd_float4x4?, cell: CoverageTracker.Cell
+        cameraTransform: simd_float4x4?, gravity: SIMD3<Double>? = nil, cell: CoverageTracker.Cell
     ) throws -> Int {
         let index = manifest.frames.count + 1
         let stem = String(format: "%04d", index)
@@ -74,7 +76,8 @@ final class PersonFrameStore {
         manifest.frames.append(.init(
             index: index, image: imageName, mask: maskName, depth: depthName,
             depthWidth: depth?.width ?? 0, depthHeight: depth?.height ?? 0,
-            cameraTransform: cameraTransform.map(Self.flatten), ring: cell.ring, slice: cell.slice
+            cameraTransform: cameraTransform.map(Self.flatten), gravity: gravity.map { [$0.x, $0.y, $0.z] },
+            ring: cell.ring, slice: cell.slice
         ))
         return manifest.frames.count
     }
@@ -104,6 +107,12 @@ final class PersonFrameStore {
         let y = SIMD3(m.columns.1.x, m.columns.1.y, m.columns.1.z)
         let z = SIMD3(m.columns.2.x, m.columns.2.y, m.columns.2.z)
         return SIMD3(Double(simd_dot(x, down)), Double(simd_dot(y, down)), Double(simd_dot(z, down)))
+    }
+
+    /// Converts CoreMotion device gravity (portrait axes: x right, y top, z out of screen)
+    /// to back-camera image space (landscape-right: x right, y up, z back), matching ARKit's camera axes.
+    static func cameraGravity(fromDevice g: SIMD3<Double>) -> SIMD3<Double> {
+        SIMD3(-g.y, g.x, g.z)
     }
 
     static func png(gray: [UInt8], width: Int, height: Int) -> Data? {
@@ -198,7 +207,9 @@ struct PersonSampleSequence: Sequence {
             sample.depthDataMap = depth
         }
 
-        if let values = frame.cameraTransform, let transform = PersonFrameStore.matrix(values) {
+        if let g = frame.gravity, g.count == 3 {
+            sample.gravity = CMAcceleration(x: g[0], y: g[1], z: g[2])
+        } else if let values = frame.cameraTransform, let transform = PersonFrameStore.matrix(values) {
             let g = PersonFrameStore.gravity(cameraTransform: transform)
             sample.gravity = CMAcceleration(x: g.x, y: g.y, z: g.z)
         }

@@ -2,7 +2,7 @@
 
 An iPhone app that scans objects and people into textured 3D models you can use in games and 3D editors (Blender, Unity, Godot, Unreal).
 
-**Status:** v0.4.0. Object scanning, person scanning with a helper, on-phone model building, and export for games are built. Spin-chair (solo) person scanning is next. See "What works now" below.
+**Status:** v0.5.0. All three scan modes are built: objects, people with a helper, and people solo on a spin chair. On-phone model building and export for games are built too. Polish (v1.0) is next. See "What works now" below.
 
 ## What you need
 
@@ -34,6 +34,7 @@ xcodebuild build -project L23D.xcodeproj -scheme L23D -destination 'generic/plat
 
 - **Object scanning** with Apple's guided capture: point at the object, fit the box, walk around it. After each lap you can flip the object, scan from another height, or finish.
 - **Person scanning (helper mode):** the person stands still; a helper aims at their chest, taps Start, and walks around them. Photos are taken automatically when the phone reaches a new spot and is steady and sharp. A 3-ring map shows what's covered (inner = low, middle = chest height, outer = high). Each photo gets a person cutout (Apple Vision + LiDAR depth) so the room is ignored.
+- **Person scanning (spin chair, solo):** put the phone on a tripod at chest height, 1–1.5 m from a swivel chair. Tap Start, sit down during the 5-second countdown, and turn slowly when the voice says so (20, 30 or 45 s per turn). A photo with LiDAR depth is taken every 0.4 s. Optional second spin with the phone raised to catch the top of the head.
 - **On-phone model building** with a progress bar, time left, cancel, and retry. If the app closes mid-build, tap **Build Model** to pick up where it left off.
 - **Scan library** with thumbnails, live build progress, rename, rebuild, and delete
 - **3D viewer:** drag to spin, pinch to zoom. Shows real size (cm), triangle count, photo count, and storage used.
@@ -64,6 +65,7 @@ Models are in meters with Y pointing up. GLB files pass the Khronos glTF validat
 - Plain, tight-ish clothes scan better than shiny or very loose ones. Hair is hard.
 - Even light, no strong shadows. Walk slowly — the app skips blurry photos.
 - Go all the way around 3 times: chest height, low (crouch), and high (phone above head).
+- Spin chair: turn your feet, not your upper body. Keep your head facing the same way as your chest. Turn up the volume so you hear the cues.
 
 ### Tips for good object scans
 
@@ -79,7 +81,7 @@ Models are in meters with Y pointing up. GLB files pass the Khronos glTF validat
 | ~~0.2.0~~ | ~~Object scanning, on-phone model building, 3D viewer, AR view~~ (done) |
 | ~~0.3.0~~ | ~~Export for games/3D apps: GLB, OBJ, USDZ, with pivot, units and texture size options~~ (done) |
 | ~~0.4.0~~ | ~~Person scan: a helper walks around a still person~~ (done) |
-| 0.5.0 | Person scan: spin chair + tripod (solo) |
+| ~~0.5.0~~ | ~~Person scan: spin chair + tripod (solo)~~ (done) |
 | 1.0.0 | Polish: background processing, low-poly export, tips |
 | later | HQ mode: build higher-detail models on a Mac |
 
@@ -98,7 +100,7 @@ L23D/Models                 Scan record, scan modes and status
 L23D/Storage                where scan files live on disk
 L23D/Library                library grid, scan detail, new-scan picker, about
 L23D/Capture/Object         guided object capture (Apple Object Capture)
-L23D/Capture/Person         person capture: ARKit engine, coverage ring, blur check, person masks, frame store
+L23D/Capture/Person         person capture: helper (ARKit) and spin-chair (LiDAR camera + voice) engines, coverage ring, blur check, person masks, frame store
 L23D/Reconstruction         on-phone model building, model stats, thumbnails
 L23D/Viewer                 3D model viewer
 L23D/Export                 mesh format, USDZ reader/writer, GLB + OBJ writers, export screen, zip

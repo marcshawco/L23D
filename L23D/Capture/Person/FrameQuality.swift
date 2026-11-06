@@ -12,7 +12,7 @@ enum FrameQuality {
 
     /// Variance of the Laplacian over the middle of the image, sampling every `step` pixels.
     /// Higher = sharper.
-    static func sharpness(gray: UnsafeBufferPointer<UInt8>, width: Int, height: Int, bytesPerRow: Int, step: Int = 4) -> Double {
+    static func sharpness(gray: UnsafeBufferPointer<UInt8>, width: Int, height: Int, bytesPerRow: Int, pixelStride: Int = 1, step: Int = 4) -> Double {
         guard width > 4 * step, height > 4 * step else { return 0 }
         // Middle 60% of the frame, where the person is.
         let x0 = width / 5, x1 = width - width / 5
@@ -22,11 +22,11 @@ enum FrameQuality {
         while y < y1 {
             var x = x0
             while x < x1 {
-                let c = Int(gray[y * bytesPerRow + x])
-                let l = Int(gray[y * bytesPerRow + x - step])
-                let r = Int(gray[y * bytesPerRow + x + step])
-                let u = Int(gray[(y - step) * bytesPerRow + x])
-                let d = Int(gray[(y + step) * bytesPerRow + x])
+                let c = Int(gray[y * bytesPerRow + x * pixelStride])
+                let l = Int(gray[y * bytesPerRow + (x - step) * pixelStride])
+                let r = Int(gray[y * bytesPerRow + (x + step) * pixelStride])
+                let u = Int(gray[(y - step) * bytesPerRow + x * pixelStride])
+                let d = Int(gray[(y + step) * bytesPerRow + x * pixelStride])
                 let laplacian = Double(l + r + u + d - 4 * c)
                 sum += laplacian
                 sumSquares += laplacian * laplacian
@@ -40,7 +40,8 @@ enum FrameQuality {
         return sumSquares / count - mean * mean
     }
 
-    /// Sharpness of the luma (Y) plane of a camera frame (bi-planar YUV from ARKit).
+    /// Sharpness of a camera frame: the luma (Y) plane of bi-planar YUV (ARKit),
+    /// or the green channel of 32BGRA (AVFoundation photos).
     static func sharpness(of pixelBuffer: CVPixelBuffer) -> Double {
         CVPixelBufferLockBaseAddress(pixelBuffer, .readOnly)
         defer { CVPixelBufferUnlockBaseAddress(pixelBuffer, .readOnly) }
@@ -51,8 +52,11 @@ enum FrameQuality {
         let width = planar ? CVPixelBufferGetWidthOfPlane(pixelBuffer, 0) : CVPixelBufferGetWidth(pixelBuffer)
         let height = planar ? CVPixelBufferGetHeightOfPlane(pixelBuffer, 0) : CVPixelBufferGetHeight(pixelBuffer)
         let rowBytes = planar ? CVPixelBufferGetBytesPerRowOfPlane(pixelBuffer, 0) : CVPixelBufferGetBytesPerRow(pixelBuffer)
-        let buffer = UnsafeBufferPointer(start: base.assumingMemoryBound(to: UInt8.self), count: rowBytes * height)
-        return sharpness(gray: buffer, width: width, height: height, bytesPerRow: rowBytes)
+        let isBGRA = !planar && CVPixelBufferGetPixelFormatType(pixelBuffer) == kCVPixelFormatType_32BGRA
+        // Green (byte 1 of BGRA) is the best single-channel stand-in for brightness.
+        let start = base.assumingMemoryBound(to: UInt8.self) + (isBGRA ? 1 : 0)
+        let buffer = UnsafeBufferPointer(start: start, count: rowBytes * height - (isBGRA ? 1 : 0))
+        return sharpness(gray: buffer, width: width, height: height, bytesPerRow: rowBytes, pixelStride: isBGRA ? 4 : 1)
     }
 
     /// Angle (radians) between two camera orientations.
