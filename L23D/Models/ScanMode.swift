@@ -35,9 +35,9 @@ enum ScanMode: String, Codable, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    /// Person modes are built in later phases (see roadmap).
+    /// Spin-chair mode is built in a later phase (see roadmap).
     var isAvailable: Bool {
-        self == .object
+        self != .personSpin
     }
 }
 

@@ -2,7 +2,7 @@
 
 An iPhone app that scans objects and people into textured 3D models you can use in games and 3D editors (Blender, Unity, Godot, Unreal).
 
-**Status:** v0.3.0. Object scanning, on-phone model building, and export for games are built. Person scanning is next. See "What works now" below.
+**Status:** v0.4.0. Object scanning, person scanning with a helper, on-phone model building, and export for games are built. Spin-chair (solo) person scanning is next. See "What works now" below.
 
 ## What you need
 
@@ -33,6 +33,7 @@ xcodebuild build -project L23D.xcodeproj -scheme L23D -destination 'generic/plat
 ## What works now
 
 - **Object scanning** with Apple's guided capture: point at the object, fit the box, walk around it. After each lap you can flip the object, scan from another height, or finish.
+- **Person scanning (helper mode):** the person stands still; a helper aims at their chest, taps Start, and walks around them. Photos are taken automatically when the phone reaches a new spot and is steady and sharp. A 3-ring map shows what's covered (inner = low, middle = chest height, outer = high). Each photo gets a person cutout (Apple Vision + LiDAR depth) so the room is ignored.
 - **On-phone model building** with a progress bar, time left, cancel, and retry. If the app closes mid-build, tap **Build Model** to pick up where it left off.
 - **Scan library** with thumbnails, live build progress, rename, rebuild, and delete
 - **3D viewer:** drag to spin, pinch to zoom. Shows real size (cm), triangle count, photo count, and storage used.
@@ -57,6 +58,13 @@ xcodebuild build -project L23D.xcodeproj -scheme L23D -destination 'generic/plat
 
 Models are in meters with Y pointing up. GLB files pass the Khronos glTF validator.
 
+### Tips for good person scans
+
+- The person should stand very still, arms slightly away from the body, eyes on one spot.
+- Plain, tight-ish clothes scan better than shiny or very loose ones. Hair is hard.
+- Even light, no strong shadows. Walk slowly — the app skips blurry photos.
+- Go all the way around 3 times: chest height, low (crouch), and high (phone above head).
+
 ### Tips for good object scans
 
 - Use even, bright light. Avoid harsh shadows.
@@ -70,7 +78,7 @@ Models are in meters with Y pointing up. GLB files pass the Khronos glTF validat
 |---|---|
 | ~~0.2.0~~ | ~~Object scanning, on-phone model building, 3D viewer, AR view~~ (done) |
 | ~~0.3.0~~ | ~~Export for games/3D apps: GLB, OBJ, USDZ, with pivot, units and texture size options~~ (done) |
-| 0.4.0 | Person scan: a helper walks around a still person |
+| ~~0.4.0~~ | ~~Person scan: a helper walks around a still person~~ (done) |
 | 0.5.0 | Person scan: spin chair + tripod (solo) |
 | 1.0.0 | Polish: background processing, low-poly export, tips |
 | later | HQ mode: build higher-detail models on a Mac |
@@ -90,6 +98,7 @@ L23D/Models                 Scan record, scan modes and status
 L23D/Storage                where scan files live on disk
 L23D/Library                library grid, scan detail, new-scan picker, about
 L23D/Capture/Object         guided object capture (Apple Object Capture)
+L23D/Capture/Person         person capture: ARKit engine, coverage ring, blur check, person masks, frame store
 L23D/Reconstruction         on-phone model building, model stats, thumbnails
 L23D/Viewer                 3D model viewer
 L23D/Export                 mesh format, USDZ reader/writer, GLB + OBJ writers, export screen, zip
@@ -97,6 +106,6 @@ L23D/Support                device checks, debug sample model
 L23DTests                   unit tests (Swift Testing)
 ```
 
-Each scan is stored in `Application Support/Scans/<id>/` with `Images/` (photos), `Checkpoint/`, `Model/model.usdz`, `thumbnail.jpg`, and `Exports/`.
+Each scan is stored in `Application Support/Scans/<id>/` with `Images/` (photos), `Checkpoint/`, `Model/model.usdz`, `thumbnail.jpg`, and `Exports/`. Person scans also have `Masks/`, `Depth/`, and `frames.json` (camera pose per photo).
 
 The Xcode project uses synchronized folders: new files in `L23D/` or `L23DTests/` are picked up automatically.

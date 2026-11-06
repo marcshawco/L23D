@@ -78,8 +78,15 @@ struct LibraryView: View {
                 AboutView()
             }
             .fullScreenCover(item: $capturingScan, onDismiss: buildJustCaptured) { scan in
-                ObjectCaptureFlowView(folder: scan.folder) { outcome in
-                    handleCaptureOutcome(outcome, for: scan)
+                switch scan.mode {
+                case .object:
+                    ObjectCaptureFlowView(folder: scan.folder) { outcome in
+                        handleCaptureOutcome(outcome, for: scan)
+                    }
+                case .personHelper, .personSpin:
+                    HelperCaptureView(folder: scan.folder) { outcome in
+                        handleCaptureOutcome(outcome, for: scan)
+                    }
                 }
             }
             .alert("Something went wrong", isPresented: .constant(errorMessage != nil)) {
@@ -95,7 +102,7 @@ struct LibraryView: View {
     private func startPendingCapture() {
         guard let mode = pendingMode else { return }
         pendingMode = nil
-        guard mode == .object else { return } // Person modes arrive in later phases.
+        guard mode.isAvailable else { return }
         let scan = Scan(name: Scan.defaultName(for: mode), mode: mode)
         modelContext.insert(scan)
         try? modelContext.save()

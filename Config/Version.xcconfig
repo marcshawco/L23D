@@ -1,4 +1,4 @@
 // App version. Bump this on every meaningful change (see AGENTS.md).
 // MARKETING_VERSION = user-facing version, CURRENT_PROJECT_VERSION = build number.
-MARKETING_VERSION = 0.3.0
-CURRENT_PROJECT_VERSION = 3
+MARKETING_VERSION = 0.4.0
+CURRENT_PROJECT_VERSION = 4

@@ -8,6 +8,7 @@ import Foundation
 ///   Model/model.usdz
 ///   thumbnail.jpg
 ///   Exports/       GLB / OBJ / USDZ files made for sharing
+///   Masks/, Depth/, frames.json   person scans only
 /// ```
 struct ScanFolder: Sendable, Hashable {
     let root: URL
@@ -18,6 +19,11 @@ struct ScanFolder: Sendable, Hashable {
     var modelFile: URL { modelDirectory.appending(path: "model.usdz") }
     var thumbnail: URL { root.appending(path: "thumbnail.jpg") }
     var exports: URL { root.appending(path: "Exports", directoryHint: .isDirectory) }
+    /// Person scans only: cutout masks, LiDAR depth, and the frame list.
+    var masks: URL { root.appending(path: "Masks", directoryHint: .isDirectory) }
+    var depth: URL { root.appending(path: "Depth", directoryHint: .isDirectory) }
+    var personManifest: URL { root.appending(path: "frames.json") }
+    var isPersonScan: Bool { FileManager.default.fileExists(atPath: personManifest.path(percentEncoded: false)) }
 
     var hasModel: Bool { FileManager.default.fileExists(atPath: modelFile.path(percentEncoded: false)) }
     var hasThumbnail: Bool { FileManager.default.fileExists(atPath: thumbnail.path(percentEncoded: false)) }
@@ -36,11 +42,14 @@ struct ScanFolder: Sendable, Hashable {
         }
     }
 
-    /// Empties `Images/` and `Checkpoint/` so a new capture can start
+    /// Empties `Images/`, `Checkpoint/` (and person-scan data) so a new capture can start
     /// (Object Capture refuses a folder that already has files in it).
     func resetCapture() throws {
         let fm = FileManager.default
-        for dir in [images, checkpoint] {
+        if fm.fileExists(atPath: personManifest.path(percentEncoded: false)) {
+            try fm.removeItem(at: personManifest)
+        }
+        for dir in [images, checkpoint, masks, depth] {
             if fm.fileExists(atPath: dir.path(percentEncoded: false)) {
                 try fm.removeItem(at: dir)
             }

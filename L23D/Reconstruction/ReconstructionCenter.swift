@@ -114,11 +114,25 @@ final class ReconstructionCenter {
 
             var configuration = PhotogrammetrySession.Configuration()
             configuration.checkpointDirectory = folder.checkpoint
-            // Object Capture saves photos in the order they were taken.
+            // Both capture modes save photos in the order they were taken.
             configuration.sampleOrdering = .sequential
             configuration.isObjectMaskingEnabled = true
 
-            let session = try PhotogrammetrySession(input: folder.images, configuration: configuration)
+            let session: PhotogrammetrySession
+            if folder.isPersonScan {
+                // People: photos + person masks + LiDAR depth, fed one at a time.
+                // Skin and clothes have little texture, so look harder for features.
+                configuration.featureSensitivity = .high
+                configuration.ignoreBoundingBox = true
+                let manifest = try PersonFrameStore.loadManifest(from: folder)
+                let samples = PersonSampleSequence(
+                    folder: folder, manifest: manifest,
+                    limit: PhotogrammetrySession.limits.maximumNumberOfInputImages
+                )
+                session = try PhotogrammetrySession(input: samples, configuration: configuration)
+            } else {
+                session = try PhotogrammetrySession(input: folder.images, configuration: configuration)
+            }
             job.session = session
             try session.process(requests: [.modelFile(url: folder.modelFile)])
 
