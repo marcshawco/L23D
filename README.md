@@ -2,7 +2,7 @@
 
 An iPhone app that scans objects and people into textured 3D models you can use in games and 3D editors (Blender, Unity, Godot, Unreal).
 
-**Status:** early build (v0.1.0). The app shell and scan library are in place; capture comes next. See "What works now" below.
+**Status:** v0.2.0. Object scanning and on-phone model building are built. Person scanning and game exports are next. See "What works now" below.
 
 ## What you need
 
@@ -32,16 +32,26 @@ xcodebuild build -project L23D.xcodeproj -scheme L23D -destination 'generic/plat
 
 ## What works now
 
-- Scan library (empty state, grid, delete)
-- "New Scan" picker with the three scan modes (Object, Person — Helper, Person — Spin Chair)
-- Device check: tells you if this phone can scan
-- About screen with the app version
+- **Object scanning** with Apple's guided capture: point at the object, fit the box, walk around it. After each lap you can flip the object, scan from another height, or finish.
+- **On-phone model building** with a progress bar, time left, cancel, and retry. If the app closes mid-build, tap **Build Model** to pick up where it left off.
+- **Scan library** with thumbnails, live build progress, rename, rebuild, and delete
+- **3D viewer:** drag to spin, pinch to zoom. Shows real size (cm), triangle count, photo count, and storage used.
+- **View in AR** (AR Quick Look) and **Share USDZ**
+- **Device check:** tells you if this phone can scan
+- **Debug builds only:** ••• menu → **Add Sample Model** makes a test box, so you can try the viewer in the Simulator
+
+### Tips for good object scans
+
+- Use even, bright light. Avoid harsh shadows.
+- Put the object on a plain surface with space all around it.
+- Walk slowly. Do 3 laps (low, middle, high), or flip the object to capture its bottom.
+- Shiny, see-through, or very thin objects scan poorly.
 
 ## Planned
 
 | Version | Feature |
 |---|---|
-| 0.2.0 | Object scanning with Apple's guided capture, on-phone model building, 3D viewer, AR view |
+| ~~0.2.0~~ | ~~Object scanning, on-phone model building, 3D viewer, AR view~~ (done) |
 | 0.3.0 | Export for games/3D apps: GLB, OBJ, USDZ, with pivot, units and texture size options |
 | 0.4.0 | Person scan: a helper walks around a still person |
 | 0.5.0 | Person scan: spin chair + tripod (solo) |
@@ -57,13 +67,19 @@ xcodebuild build -project L23D.xcodeproj -scheme L23D -destination 'generic/plat
 ## Project layout
 
 ```
-Config/Version.xcconfig   app version + build number (bump on every change)
-L23D/App                  app entry and root view
-L23D/Models               Scan record, scan modes and status
-L23D/Storage              where scan files live on disk
-L23D/Library              library grid, new-scan picker, about
-L23D/Support              device checks
-L23DTests                 unit tests (Swift Testing)
+Config/Version.xcconfig     app version + build number (bump on every change)
+L23D/App                    app entry and root view
+L23D/Models                 Scan record, scan modes and status
+L23D/Storage                where scan files live on disk
+L23D/Library                library grid, scan detail, new-scan picker, about
+L23D/Capture/Object         guided object capture (Apple Object Capture)
+L23D/Reconstruction         on-phone model building, model stats, thumbnails
+L23D/Viewer                 3D model viewer
+L23D/Export                 mesh format, USDZ reader/writer, zip
+L23D/Support                device checks, debug sample model
+L23DTests                   unit tests (Swift Testing)
 ```
+
+Each scan is stored in `Application Support/Scans/<id>/` with `Images/` (photos), `Checkpoint/`, `Model/model.usdz`, `thumbnail.jpg`, and `Exports/`.
 
 The Xcode project uses synchronized folders: new files in `L23D/` or `L23DTests/` are picked up automatically.

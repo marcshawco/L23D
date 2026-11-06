@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 
 /// Top-level screen. The library is the home of the app.
@@ -8,6 +9,8 @@ struct RootView: View {
 }
 
 #Preview {
+    let container = try! ModelContainer(for: Scan.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
     RootView()
-        .modelContainer(for: Scan.self, inMemory: true)
+        .environment(ReconstructionCenter(container: container))
+        .modelContainer(container)
 }
