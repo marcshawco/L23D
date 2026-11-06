@@ -62,6 +62,20 @@ struct ExportSheet: View {
                 }
 
                 Section {
+                    Picker("Detail", selection: $options.detail) {
+                        ForEach(ExportOptions.Detail.allCases) { detail in
+                            Text(detail.title).tag(detail)
+                        }
+                    }
+                } header: {
+                    Text("Triangles")
+                } footer: {
+                    if let triangles = scan.triangleCount {
+                        Text("About \(Int(Double(triangles) * options.detail.ratio).formatted()) triangles. Use Low or Very low for mobile games and background props.")
+                    }
+                }
+
+                Section {
                     Picker("Max texture size", selection: $options.maxTextureSize) {
                         ForEach(ExportOptions.TextureSize.allCases) { size in
                             Text(size.title).tag(size)

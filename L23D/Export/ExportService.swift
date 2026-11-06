@@ -49,7 +49,30 @@ struct ExportOptions: Sendable, Equatable {
         var title: String { self == .original ? "Original" : "\(rawValue) px" }
     }
 
+    enum Detail: String, CaseIterable, Identifiable, Sendable {
+        case full, high, medium, low
+        var id: String { rawValue }
+        /// Share of the original triangles to keep.
+        var ratio: Double {
+            switch self {
+            case .full: 1
+            case .high: 0.5
+            case .medium: 0.25
+            case .low: 0.1
+            }
+        }
+        var title: String {
+            switch self {
+            case .full: "Full"
+            case .high: "High (50%)"
+            case .medium: "Low (25%)"
+            case .low: "Very low (10%)"
+            }
+        }
+    }
+
     var format: Format = .glb
+    var detail: Detail = .full
     var pivot: Pivot = .bottomCenter
     /// Only used for OBJ, which has no unit of its own. GLB and USDZ are always meters.
     var units: Units = .meters
@@ -58,7 +81,7 @@ struct ExportOptions: Sendable, Equatable {
 
     /// True when the original USDZ can be shared untouched.
     var isPassThrough: Bool {
-        format == .usdz && pivot == .original && maxTextureSize == .original
+        format == .usdz && pivot == .original && maxTextureSize == .original && detail == .full
     }
 }
 
@@ -101,6 +124,11 @@ enum ExportService {
     /// Applies unit fix-up, pivot, export units and texture size.
     static func prepare(_ source: MeshData, realSize: SIMD3<Float>?, options: ExportOptions) -> MeshData {
         var mesh = source
+        // 0. Fewer triangles if asked (game LODs).
+        if options.detail != .full {
+            let target = max(100, Int(Double(mesh.triangleCount) * options.detail.ratio))
+            mesh = MeshSimplifier.simplify(mesh, targetTriangles: target)
+        }
         // 1. Make sure the mesh is in meters (some USD files use centimeters).
         if let realSize {
             let unitScale = unitCorrection(meshSize: mesh.size, realSize: realSize)

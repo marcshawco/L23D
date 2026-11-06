@@ -12,5 +12,6 @@ struct RootView: View {
     let container = try! ModelContainer(for: Scan.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
     RootView()
         .environment(ReconstructionCenter(container: container))
+        .environment(SystemStatus())
         .modelContainer(container)
 }

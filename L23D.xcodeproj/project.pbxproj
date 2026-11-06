@@ -20,6 +20,7 @@
 		0A0000000000000000000010 /* L23D.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = L23D.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		0A0000000000000000000011 /* L23DTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = L23DTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		0A0000000000000000000012 /* Version.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Version.xcconfig; sourceTree = "<group>"; };
+		0A0000000000000000000013 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -75,6 +76,7 @@
 		0A0000000000000000000004 /* Config */ = {
 			isa = PBXGroup;
 			children = (
+				0A0000000000000000000013 /* Info.plist */,
 				0A0000000000000000000012 /* Version.xcconfig */,
 			);
 			path = Config;
@@ -282,6 +284,7 @@
 				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Config/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = L23D;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.graphics-design";
 				INFOPLIST_KEY_NSCameraUsageDescription = "L23D uses the camera and LiDAR scanner to capture photos and depth for building 3D models.";
@@ -310,6 +313,7 @@
 				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Config/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = L23D;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.graphics-design";
 				INFOPLIST_KEY_NSCameraUsageDescription = "L23D uses the camera and LiDAR scanner to capture photos and depth for building 3D models.";

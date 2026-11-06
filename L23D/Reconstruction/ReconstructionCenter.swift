@@ -106,6 +106,15 @@ final class ReconstructionCenter {
         job.fraction = 0
         job.stage = "Starting"
 
+        // Keep building if the user switches apps. If iOS stops us, cancel cleanly;
+        // the checkpoint lets the next build pick up where this one left off.
+        let background = BackgroundBuildTask()
+        var expired = false
+        background.begin(scanName: scanName(job.scanID)) { [weak self] in
+            expired = true
+            self?.cancel(job.scanID)
+        }
+
         do {
             try FileManager.default.createDirectory(at: folder.modelDirectory, withIntermediateDirectories: true)
             if folder.hasModel {
@@ -143,6 +152,7 @@ final class ReconstructionCenter {
                 switch output {
                 case .requestProgress(_, let fraction):
                     job.fraction = fraction
+                    background.update(fraction: fraction, stage: job.stage)
                 case .requestProgressInfo(_, let info):
                     job.remaining = info.estimatedRemainingTime
                     if let stage = info.processingStage {
@@ -162,8 +172,14 @@ final class ReconstructionCenter {
             job.session = nil
 
             if wasCancelled || job.cancelRequested {
+                background.end(success: false)
                 job.phase = .cancelled
-                updateScan(job.scanID) { $0.status = .captured }
+                updateScan(job.scanID) { scan in
+                    scan.status = .captured
+                    if expired {
+                        scan.failureMessage = "iOS paused the build in the background. Tap Build Model to continue."
+                    }
+                }
                 return
             }
             if let requestError {
@@ -187,7 +203,9 @@ final class ReconstructionCenter {
             }
             job.fraction = 1
             job.phase = .finished
+            background.end(success: true)
         } catch {
+            background.end(success: false)
             job.session = nil
             let message = Self.describe(error)
             job.phase = .failed(message)
@@ -211,6 +229,11 @@ final class ReconstructionCenter {
             scan.failureMessage = "Building stopped when the app closed. Tap Build Model to continue."
         }
         try? container.mainContext.save()
+    }
+
+    private func scanName(_ scanID: UUID) -> String {
+        let descriptor = FetchDescriptor<Scan>(predicate: #Predicate { $0.id == scanID })
+        return (try? container.mainContext.fetch(descriptor).first?.name) ?? "Scan"
     }
 
     private func updateScan(_ scanID: UUID, _ change: (Scan) -> Void) {

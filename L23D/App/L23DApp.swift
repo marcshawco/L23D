@@ -5,6 +5,8 @@ import SwiftUI
 struct L23DApp: App {
     private let container: ModelContainer
     @State private var reconstruction: ReconstructionCenter
+    @State private var systemStatus = SystemStatus()
+    @Environment(\.scenePhase) private var scenePhase
 
     init() {
         let container: ModelContainer
@@ -21,6 +23,10 @@ struct L23DApp: App {
         WindowGroup {
             RootView()
                 .environment(reconstruction)
+                .environment(systemStatus)
+                .onChange(of: scenePhase) { _, phase in
+                    if phase == .active { systemStatus.refresh() }
+                }
         }
         .modelContainer(container)
     }

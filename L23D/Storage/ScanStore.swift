@@ -57,6 +57,15 @@ struct ScanFolder: Sendable, Hashable {
         }
     }
 
+    /// Deletes the photos, masks, depth and checkpoint but keeps the model and exports.
+    /// After this the model can't be rebuilt.
+    func deleteCaptureData() throws {
+        let fm = FileManager.default
+        for url in [images, masks, depth, checkpoint, personManifest] where fm.fileExists(atPath: url.path(percentEncoded: false)) {
+            try fm.removeItem(at: url)
+        }
+    }
+
     /// Total bytes on disk for this scan.
     var diskUsage: Int64 {
         guard let enumerator = FileManager.default.enumerator(

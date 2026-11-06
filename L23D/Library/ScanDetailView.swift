@@ -16,6 +16,7 @@ struct ScanDetailView: View {
     @State private var confirmDelete = false
     @State private var diskUsage: Int64?
     @State private var showExport = false
+    @State private var confirmDeletePhotos = false
 
     var body: some View {
         ScrollView {
@@ -23,6 +24,8 @@ struct ScanDetailView: View {
                 preview
                     .frame(height: 360)
                     .clipShape(RoundedRectangle(cornerRadius: 20))
+
+                SystemWarningsView()
 
                 statusSection
 
@@ -48,6 +51,11 @@ struct ScanDetailView: View {
                             reconstruction.enqueue(scan)
                         }
                     }
+                    if scan.status == .ready, scan.folder.imageCount > 0 {
+                        Button("Delete Photos, Keep Model", systemImage: "photo.badge.minus") {
+                            confirmDeletePhotos = true
+                        }
+                    }
                     Button("Delete", systemImage: "trash", role: .destructive) {
                         confirmDelete = true
                     }
@@ -67,6 +75,11 @@ struct ScanDetailView: View {
                 if !trimmed.isEmpty { scan.name = trimmed }
             }
             Button("Cancel", role: .cancel) {}
+        }
+        .confirmationDialog("Delete the photos?", isPresented: $confirmDeletePhotos, titleVisibility: .visible) {
+            Button("Delete Photos", role: .destructive) { deletePhotos() }
+        } message: {
+            Text("This frees up space. The 3D model and exports stay, but you won't be able to rebuild the model.")
         }
         .confirmationDialog("Delete this scan?", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("Delete", role: .destructive) { deleteScan() }
@@ -192,6 +205,18 @@ struct ScanDetailView: View {
         scan.status != .processing && scan.status != .capturing && scan.folder.imageCount > 0
     }
 
+    private func deletePhotos() {
+        do {
+            try scan.folder.deleteCaptureData()
+            scan.imageCount = 0
+            try? modelContext.save()
+            let folder = scan.folder
+            Task { diskUsage = await Task.detached { folder.diskUsage }.value }
+        } catch {
+            scan.failureMessage = "Couldn't delete the photos: \(error.localizedDescription)"
+        }
+    }
+
     private func deleteScan() {
         reconstruction.cancel(scan.id)
         ScanStore.deleteFiles(for: scan.id)
@@ -217,7 +242,7 @@ struct BuildProgressView: View {
             }
             ProgressView(value: job.fraction)
             HStack {
-                Text(job.remainingText ?? "Keep the app open while it builds.")
+                Text(job.remainingText ?? "You can switch apps — iOS keeps building for a while.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()

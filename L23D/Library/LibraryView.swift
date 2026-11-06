@@ -10,6 +10,7 @@ struct LibraryView: View {
     @State private var path: [Scan] = []
     @State private var showNewScan = false
     @State private var showAbout = false
+    @State private var showTips = false
     @State private var pendingMode: ScanMode?
     @State private var capturingScan: Scan?
     @State private var justCaptured: Scan?
@@ -55,6 +56,7 @@ struct LibraryView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Menu {
+                        Button("Scanning Tips", systemImage: "lightbulb") { showTips = true }
                         Button("About", systemImage: "info.circle") { showAbout = true }
                         #if DEBUG
                         Button("Add Sample Model", systemImage: "shippingbox") { addSample() }
@@ -76,6 +78,9 @@ struct LibraryView: View {
             }
             .sheet(isPresented: $showAbout) {
                 AboutView()
+            }
+            .sheet(isPresented: $showTips) {
+                TipsView()
             }
             .fullScreenCover(item: $capturingScan, onDismiss: buildJustCaptured) { scan in
                 switch scan.mode {
@@ -210,6 +215,8 @@ struct ScanCard: View {
 struct NewScanSheet: View {
     let onPick: (ScanMode) -> Void
     @Environment(\.dismiss) private var dismiss
+    @Environment(SystemStatus.self) private var status
+    @State private var showTips = false
 
     var body: some View {
         NavigationStack {
@@ -218,6 +225,11 @@ struct NewScanSheet: View {
                     Section {
                         Label(reason, systemImage: "exclamationmark.triangle")
                             .foregroundStyle(.orange)
+                    }
+                }
+                if !status.warnings.isEmpty {
+                    Section {
+                        SystemWarningsView()
                     }
                 }
                 Section("What are you scanning?") {
@@ -238,7 +250,7 @@ struct NewScanSheet: View {
                             }
                         }
                         .foregroundStyle(.primary)
-                        .disabled(!mode.isAvailable || !DeviceSupport.canScan)
+                        .disabled(!mode.isAvailable || !DeviceSupport.canScan || status.isTooHotToScan)
                     }
                 }
             }
@@ -248,13 +260,21 @@ struct NewScanSheet: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
+                ToolbarItem(placement: .primaryAction) {
+                    Button("Tips", systemImage: "lightbulb") { showTips = true }
+                }
             }
+            .sheet(isPresented: $showTips) {
+                TipsView()
+            }
+            .onAppear { status.refresh() }
         }
     }
 }
 
 struct AboutView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(SystemStatus.self) private var status
 
     var body: some View {
         NavigationStack {
@@ -262,6 +282,12 @@ struct AboutView: View {
                 LabeledContent("Version", value: Bundle.main.versionString)
                 LabeledContent("LiDAR", value: DeviceSupport.hasLiDAR ? "Yes" : "No")
                 LabeledContent("Can scan", value: DeviceSupport.canScan ? "Yes" : "No")
+                if let free = status.freeBytes {
+                    LabeledContent("Free storage", value: Format.bytes(free))
+                }
+                if !status.warnings.isEmpty {
+                    SystemWarningsView()
+                }
                 Section {
                     Text("Models are built on this iPhone. Apple limits on-phone models to its \"reduced\" detail level, which works well for games and AR.")
                         .font(.footnote)

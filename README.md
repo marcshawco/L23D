@@ -2,7 +2,7 @@
 
 An iPhone app that scans objects and people into textured 3D models you can use in games and 3D editors (Blender, Unity, Godot, Unreal).
 
-**Status:** v0.5.0. All three scan modes are built: objects, people with a helper, and people solo on a spin chair. On-phone model building and export for games are built too. Polish (v1.0) is next. See "What works now" below.
+**Status:** v0.6.0. All features for v1 are built: three scan modes, on-phone model building (keeps going in the background), and game export with low-poly options. **Nothing that uses the camera has been tested on a real iPhone yet** — v1.0.0 will be tagged after that test. See "What works now" below.
 
 ## What you need
 
@@ -35,13 +35,17 @@ xcodebuild build -project L23D.xcodeproj -scheme L23D -destination 'generic/plat
 - **Object scanning** with Apple's guided capture: point at the object, fit the box, walk around it. After each lap you can flip the object, scan from another height, or finish.
 - **Person scanning (helper mode):** the person stands still; a helper aims at their chest, taps Start, and walks around them. Photos are taken automatically when the phone reaches a new spot and is steady and sharp. A 3-ring map shows what's covered (inner = low, middle = chest height, outer = high). Each photo gets a person cutout (Apple Vision + LiDAR depth) so the room is ignored.
 - **Person scanning (spin chair, solo):** put the phone on a tripod at chest height, 1–1.5 m from a swivel chair. Tap Start, sit down during the 5-second countdown, and turn slowly when the voice says so (20, 30 or 45 s per turn). A photo with LiDAR depth is taken every 0.4 s. Optional second spin with the phone raised to catch the top of the head.
-- **On-phone model building** with a progress bar, time left, cancel, and retry. If the app closes mid-build, tap **Build Model** to pick up where it left off.
+- **On-phone model building** with a progress bar, time left, cancel, and retry. Building keeps going if you switch apps (iOS shows its progress). If iOS stops it, or the app closes, tap **Build Model** to pick up where it left off.
+- **Heat and storage warnings:** the app warns when your iPhone is hot or low on space, and blocks new scans when it's too hot.
+- **Delete Photos, Keep Model:** frees space once you're happy with a model.
+- **Scanning Tips** screen (••• menu, or Tips on the New Scan sheet).
 - **Scan library** with thumbnails, live build progress, rename, rebuild, and delete
 - **3D viewer:** drag to spin, pinch to zoom. Shows real size (cm), triangle count, photo count, and storage used.
 - **View in AR** (AR Quick Look) and **Share USDZ**
 - **Export for games & 3D apps:** GLB, OBJ (.zip), or USDZ, with these options:
   - **Origin point:** bottom center (sits on the ground), center, or as scanned
   - **Units** (OBJ only): meters or centimeters
+  - **Detail:** full, high (50%), low (25%) or very low (10%) triangles — for game LODs
   - **Max texture size:** original, 4096, 2048, 1024 or 512 px
   - Share the file with AirDrop, Files, or any app
 - **Device check:** tells you if this phone can scan
@@ -82,7 +86,8 @@ Models are in meters with Y pointing up. GLB files pass the Khronos glTF validat
 | ~~0.3.0~~ | ~~Export for games/3D apps: GLB, OBJ, USDZ, with pivot, units and texture size options~~ (done) |
 | ~~0.4.0~~ | ~~Person scan: a helper walks around a still person~~ (done) |
 | ~~0.5.0~~ | ~~Person scan: spin chair + tripod (solo)~~ (done) |
-| 1.0.0 | Polish: background processing, low-poly export, tips |
+| ~~0.6.0~~ | ~~Polish: background building, heat/storage warnings, low-poly export, tips~~ (done) |
+| 1.0.0 | After a full on-device test of all three modes |
 | later | HQ mode: build higher-detail models on a Mac |
 
 ## How it works
@@ -95,6 +100,7 @@ Models are in meters with Y pointing up. GLB files pass the Khronos glTF validat
 
 ```
 Config/Version.xcconfig     app version + build number (bump on every change)
+Config/Info.plist           extra Info.plist keys (background build task IDs)
 L23D/App                    app entry and root view
 L23D/Models                 Scan record, scan modes and status
 L23D/Storage                where scan files live on disk
