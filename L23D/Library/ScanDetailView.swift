@@ -15,6 +15,7 @@ struct ScanDetailView: View {
     @State private var draftName = ""
     @State private var confirmDelete = false
     @State private var diskUsage: Int64?
+    @State private var showExport = false
 
     var body: some View {
         ScrollView {
@@ -56,6 +57,9 @@ struct ScanDetailView: View {
             }
         }
         .quickLookPreview($quickLookURL)
+        .sheet(isPresented: $showExport) {
+            ExportSheet(scan: scan)
+        }
         .alert("Rename Scan", isPresented: $showRename) {
             TextField("Name", text: $draftName)
             Button("Save") {
@@ -137,20 +141,30 @@ struct ScanDetailView: View {
 
     private var actions: some View {
         let model = scan.folder.modelFile
-        return HStack(spacing: 12) {
+        return VStack(spacing: 12) {
             Button {
-                quickLookURL = model
+                showExport = true
             } label: {
-                Label("View in AR", systemImage: "arkit")
+                Label("Export for Games & 3D Apps", systemImage: "shippingbox")
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
 
-            ShareLink(item: model, preview: SharePreview(scan.name)) {
-                Label("Share USDZ", systemImage: "square.and.arrow.up")
-                    .frame(maxWidth: .infinity)
+            HStack(spacing: 12) {
+                Button {
+                    quickLookURL = model
+                } label: {
+                    Label("View in AR", systemImage: "arkit")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+
+                ShareLink(item: model, preview: SharePreview(scan.name)) {
+                    Label("Share USDZ", systemImage: "square.and.arrow.up")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
             }
-            .buttonStyle(.bordered)
         }
         .controlSize(.large)
     }

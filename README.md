@@ -2,7 +2,7 @@
 
 An iPhone app that scans objects and people into textured 3D models you can use in games and 3D editors (Blender, Unity, Godot, Unreal).
 
-**Status:** v0.2.0. Object scanning and on-phone model building are built. Person scanning and game exports are next. See "What works now" below.
+**Status:** v0.3.0. Object scanning, on-phone model building, and export for games are built. Person scanning is next. See "What works now" below.
 
 ## What you need
 
@@ -37,8 +37,25 @@ xcodebuild build -project L23D.xcodeproj -scheme L23D -destination 'generic/plat
 - **Scan library** with thumbnails, live build progress, rename, rebuild, and delete
 - **3D viewer:** drag to spin, pinch to zoom. Shows real size (cm), triangle count, photo count, and storage used.
 - **View in AR** (AR Quick Look) and **Share USDZ**
+- **Export for games & 3D apps:** GLB, OBJ (.zip), or USDZ, with these options:
+  - **Origin point:** bottom center (sits on the ground), center, or as scanned
+  - **Units** (OBJ only): meters or centimeters
+  - **Max texture size:** original, 4096, 2048, 1024 or 512 px
+  - Share the file with AirDrop, Files, or any app
 - **Device check:** tells you if this phone can scan
 - **Debug builds only:** ••• menu → **Add Sample Model** makes a test box, so you can try the viewer in the Simulator
+
+### Using exports
+
+| App | Best format | How |
+|---|---|---|
+| Blender | GLB | File → Import → glTF 2.0 |
+| Unity | GLB | Add the free *glTFast* package, then drag the .glb into Assets |
+| Godot | GLB | Drag the .glb into the FileSystem panel |
+| Unreal | GLB | Drag the .glb into the Content Browser (glTF importer) |
+| Anything else | OBJ | Unzip, then import `model.obj` (textures are in `textures/`) |
+
+Models are in meters with Y pointing up. GLB files pass the Khronos glTF validator.
 
 ### Tips for good object scans
 
@@ -52,7 +69,7 @@ xcodebuild build -project L23D.xcodeproj -scheme L23D -destination 'generic/plat
 | Version | Feature |
 |---|---|
 | ~~0.2.0~~ | ~~Object scanning, on-phone model building, 3D viewer, AR view~~ (done) |
-| 0.3.0 | Export for games/3D apps: GLB, OBJ, USDZ, with pivot, units and texture size options |
+| ~~0.3.0~~ | ~~Export for games/3D apps: GLB, OBJ, USDZ, with pivot, units and texture size options~~ (done) |
 | 0.4.0 | Person scan: a helper walks around a still person |
 | 0.5.0 | Person scan: spin chair + tripod (solo) |
 | 1.0.0 | Polish: background processing, low-poly export, tips |
@@ -75,7 +92,7 @@ L23D/Library                library grid, scan detail, new-scan picker, about
 L23D/Capture/Object         guided object capture (Apple Object Capture)
 L23D/Reconstruction         on-phone model building, model stats, thumbnails
 L23D/Viewer                 3D model viewer
-L23D/Export                 mesh format, USDZ reader/writer, zip
+L23D/Export                 mesh format, USDZ reader/writer, GLB + OBJ writers, export screen, zip
 L23D/Support                device checks, debug sample model
 L23DTests                   unit tests (Swift Testing)
 ```
