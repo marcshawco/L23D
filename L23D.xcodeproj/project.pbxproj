@@ -21,6 +21,8 @@
 		0A0000000000000000000011 /* L23DTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = L23DTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		0A0000000000000000000012 /* Version.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Version.xcconfig; sourceTree = "<group>"; };
 		0A0000000000000000000013 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		0A0000000000000000000014 /* L23DHQ.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = L23DHQ.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		0A0000000000000000000015 /* Mac-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "Mac-Info.plist"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -32,6 +34,16 @@
 		0A0000000000000000000021 /* L23DTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = L23DTests;
+			sourceTree = "<group>";
+		};
+		0A0000000000000000000022 /* Shared */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		0A0000000000000000000023 /* L23DMac */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = L23DMac;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -51,6 +63,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		0A0000000000000000000047 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -58,8 +77,10 @@
 			isa = PBXGroup;
 			children = (
 				0A0000000000000000000004 /* Config */,
+				0A0000000000000000000022 /* Shared */,
 				0A0000000000000000000020 /* L23D */,
 				0A0000000000000000000021 /* L23DTests */,
+				0A0000000000000000000023 /* L23DMac */,
 				0A0000000000000000000003 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -69,6 +90,7 @@
 			children = (
 				0A0000000000000000000010 /* L23D.app */,
 				0A0000000000000000000011 /* L23DTests.xctest */,
+				0A0000000000000000000014 /* L23DHQ.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -77,6 +99,7 @@
 			isa = PBXGroup;
 			children = (
 				0A0000000000000000000013 /* Info.plist */,
+				0A0000000000000000000015 /* Mac-Info.plist */,
 				0A0000000000000000000012 /* Version.xcconfig */,
 			);
 			path = Config;
@@ -99,6 +122,7 @@
 			);
 			fileSystemSynchronizedGroups = (
 				0A0000000000000000000020 /* L23D */,
+				0A0000000000000000000022 /* Shared */,
 			);
 			name = L23D;
 			packageProductDependencies = (
@@ -130,6 +154,29 @@
 			productReference = 0A0000000000000000000011 /* L23DTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
+		0A0000000000000000000032 /* L23DHQ */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 0A0000000000000000000069 /* Build configuration list for PBXNativeTarget "L23DHQ" */;
+			buildPhases = (
+				0A0000000000000000000046 /* Sources */,
+				0A0000000000000000000047 /* Frameworks */,
+				0A0000000000000000000048 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				0A0000000000000000000023 /* L23DMac */,
+				0A0000000000000000000022 /* Shared */,
+			);
+			name = L23DHQ;
+			packageProductDependencies = (
+			);
+			productName = L23DHQ;
+			productReference = 0A0000000000000000000014 /* L23DHQ.app */;
+			productType = "com.apple.product-type.application";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -146,6 +193,9 @@
 					0A0000000000000000000031 = {
 						CreatedOnToolsVersion = 27.2;
 						TestTargetID = 0A0000000000000000000030;
+					};
+					0A0000000000000000000032 = {
+						CreatedOnToolsVersion = 27.2;
 					};
 				};
 			};
@@ -165,6 +215,7 @@
 			targets = (
 				0A0000000000000000000030 /* L23D */,
 				0A0000000000000000000031 /* L23DTests */,
+				0A0000000000000000000032 /* L23DHQ */,
 			);
 		};
 /* End PBXProject section */
@@ -184,6 +235,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		0A0000000000000000000048 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -195,6 +253,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		0A0000000000000000000043 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		0A0000000000000000000046 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -287,6 +352,7 @@
 				INFOPLIST_FILE = Config/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = L23D;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.graphics-design";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "L23D finds your Mac running L23D HQ on your Wi-Fi to build high-detail models.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "L23D uses the camera and LiDAR scanner to capture photos and depth for building 3D models.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -316,6 +382,7 @@
 				INFOPLIST_FILE = Config/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = L23D;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.graphics-design";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "L23D finds your Mac running L23D HQ on your Wi-Fi to build high-detail models.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "L23D uses the camera and LiDAR scanner to capture photos and depth for building 3D models.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -365,6 +432,60 @@
 			};
 			name = Release;
 		};
+		0A000000000000000000006A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_HARDENED_RUNTIME = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Config/Mac-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "L23D HQ";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.graphics-design";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "L23D HQ receives scans from your iPhone over your Wi-Fi and sends back high-detail models.";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.marcshawco.L23D.HQ;
+				PRODUCT_NAME = L23DHQ;
+				SDKROOT = macosx;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		0A000000000000000000006B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_HARDENED_RUNTIME = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Config/Mac-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "L23D HQ";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.graphics-design";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "L23D HQ receives scans from your iPhone over your Wi-Fi and sends back high-detail models.";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.marcshawco.L23D.HQ;
+				PRODUCT_NAME = L23DHQ;
+				SDKROOT = macosx;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -391,6 +512,15 @@
 			buildConfigurations = (
 				0A0000000000000000000067 /* Debug */,
 				0A0000000000000000000068 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		0A0000000000000000000069 /* Build configuration list for PBXNativeTarget "L23DHQ" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				0A000000000000000000006A /* Debug */,
+				0A000000000000000000006B /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

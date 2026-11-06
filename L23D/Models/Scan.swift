@@ -17,6 +17,8 @@ final class Scan {
     var sizeY: Double?
     var sizeZ: Double?
     var failureMessage: String?
+    /// Set when a high-detail model from the Mac is in use (HQDetail raw value).
+    var hqDetailRaw: String?
 
     init(name: String, mode: ScanMode, id: UUID = UUID(), createdAt: Date = .now) {
         self.id = id
@@ -38,6 +40,11 @@ final class Scan {
     }
 
     var folder: ScanFolder { ScanStore.folder(for: id) }
+
+    var hqDetail: HQDetail? {
+        get { hqDetailRaw.flatMap(HQDetail.init(rawValue:)) }
+        set { hqDetailRaw = newValue?.rawValue }
+    }
 
     /// Size in meters, if known.
     var size: SIMD3<Double>? {

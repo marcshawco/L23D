@@ -7,5 +7,10 @@
 	<array>
 		<string>com.marcshawco.L23D.build.*</string>
 	</array>
+	<!-- HQ mode: find the L23D HQ Mac app on the local network. -->
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_l23d-hq._tcp</string>
+	</array>
 </dict>
 </plist>

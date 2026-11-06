@@ -17,6 +17,7 @@ struct ScanDetailView: View {
     @State private var diskUsage: Int64?
     @State private var showExport = false
     @State private var confirmDeletePhotos = false
+    @State private var showHQ = false
 
     var body: some View {
         ScrollView {
@@ -52,6 +53,14 @@ struct ScanDetailView: View {
                         }
                     }
                     if scan.status == .ready, scan.folder.imageCount > 0 {
+                        Button("Build HQ on Mac…", systemImage: "desktopcomputer") { showHQ = true }
+                    }
+                    if scan.hqDetail != nil {
+                        Button("Use Phone Model", systemImage: "iphone") {
+                            Task { await usePhoneModel() }
+                        }
+                    }
+                    if scan.status == .ready, scan.folder.imageCount > 0 {
                         Button("Delete Photos, Keep Model", systemImage: "photo.badge.minus") {
                             confirmDeletePhotos = true
                         }
@@ -67,6 +76,9 @@ struct ScanDetailView: View {
         .quickLookPreview($quickLookURL)
         .sheet(isPresented: $showExport) {
             ExportSheet(scan: scan)
+        }
+        .sheet(isPresented: $showHQ) {
+            HQSendSheet(scan: scan)
         }
         .alert("Rename Scan", isPresented: $showRename) {
             TextField("Name", text: $draftName)
@@ -97,8 +109,8 @@ struct ScanDetailView: View {
     @ViewBuilder
     private var preview: some View {
         if scan.status == .ready, scan.folder.hasModel {
-            ModelViewer(url: scan.folder.modelFile)
-                .id(scan.status) // reload after a rebuild
+            ModelViewer(url: scan.folder.activeModelFile)
+                .id("\(scan.status.rawValue)-\(scan.hqDetailRaw ?? "phone")") // reload after a rebuild or HQ swap
         } else {
             ZStack {
                 RoundedRectangle(cornerRadius: 20).fill(.quaternary)
@@ -153,7 +165,7 @@ struct ScanDetailView: View {
     }
 
     private var actions: some View {
-        let model = scan.folder.modelFile
+        let model = scan.folder.activeModelFile
         return VStack(spacing: 12) {
             Button {
                 showExport = true
@@ -186,6 +198,9 @@ struct ScanDetailView: View {
         VStack(spacing: 0) {
             DetailRow(title: "Type", value: scan.mode.title)
             DetailRow(title: "Status", value: scan.status.label)
+            if scan.status == .ready {
+                DetailRow(title: "Model", value: scan.hqDetail.map { "HQ · \($0.title) (built on Mac)" } ?? "Phone (reduced detail)")
+            }
             if let size = scan.size {
                 DetailRow(title: "Size", value: Format.sizeInCentimeters(size))
             }
@@ -203,6 +218,18 @@ struct ScanDetailView: View {
 
     private var canRebuild: Bool {
         scan.status != .processing && scan.status != .capturing && scan.folder.imageCount > 0
+    }
+
+    private func usePhoneModel() async {
+        let folder = scan.folder
+        try? FileManager.default.removeItem(at: folder.hqModelFile)
+        scan.hqDetail = nil
+        if let stats = try? await ModelInspector.stats(for: folder.modelFile) {
+            scan.triangleCount = stats.triangleCount
+            scan.size = SIMD3(Double(stats.size.x), Double(stats.size.y), Double(stats.size.z))
+        }
+        await ModelInspector.writeThumbnail(for: folder.modelFile, to: folder.thumbnail)
+        try? modelContext.save()
     }
 
     private func deletePhotos() {

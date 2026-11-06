@@ -149,7 +149,7 @@ struct ExportSheet: View {
         let size = scan.size.map { SIMD3(Float($0.x), Float($0.y), Float($0.z)) }
         do {
             let url = try await ExportService.export(
-                modelURL: scan.folder.modelFile,
+                modelURL: scan.folder.activeModelFile,
                 realSize: size,
                 options: options,
                 to: scan.folder.exports,

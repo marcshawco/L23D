@@ -2,7 +2,18 @@
 
 An iPhone app that scans objects and people into textured 3D models you can use in games and 3D editors (Blender, Unity, Godot, Unreal).
 
-**Status:** v0.6.0. All features for v1 are built: three scan modes, on-phone model building (keeps going in the background), and game export with low-poly options. **Nothing that uses the camera has been tested on a real iPhone yet** — v1.0.0 will be tagged after that test. See "What works now" below.
+**Status:** v0.7.0. All v1 features are built (three scan modes, on-phone building, game export), plus **HQ mode**: build Medium/Full/Raw detail models on your Mac over Wi-Fi. **Nothing that uses the camera has been tested on a real iPhone yet** — v1.0.0 will be tagged after that test. See "What works now" below.
+
+## HQ mode (build on your Mac)
+
+On iPhone, Apple only allows "reduced" detail. A Mac can build **Medium**, **Full**, or **Raw** detail from the same photos.
+
+1. In Xcode, pick the **L23D HQ** scheme and **My Mac**, then press Run. Allow incoming network connections if macOS asks.
+2. The L23D HQ window shows a **6-digit pairing code**.
+3. On the iPhone, open a finished scan → **•••** → **Build HQ on Mac…**. Pick your Mac, type the code (saved after the first time), pick a detail level, and tap **Send**.
+4. The photos go over your Wi-Fi, the Mac builds, and the HQ model comes back by itself. The viewer, AR, share, and export then use the HQ model. **••• → Use Phone Model** switches back.
+
+Both devices must be on the same Wi-Fi, and L23D must stay open on the iPhone until the model comes back. Builds run one at a time on the Mac. Received scans are kept in `~/Library/Application Support/L23D HQ/Jobs` (the window's **Show Jobs Folder** button).
 
 ## What you need
 
@@ -88,7 +99,7 @@ Models are in meters with Y pointing up. GLB files pass the Khronos glTF validat
 | ~~0.5.0~~ | ~~Person scan: spin chair + tripod (solo)~~ (done) |
 | ~~0.6.0~~ | ~~Polish: background building, heat/storage warnings, low-poly export, tips~~ (done) |
 | 1.0.0 | After a full on-device test of all three modes |
-| later | HQ mode: build higher-detail models on a Mac |
+| ~~0.7.0~~ | ~~HQ mode: build higher-detail models on a Mac~~ (done) |
 
 ## How it works
 
@@ -100,7 +111,11 @@ Models are in meters with Y pointing up. GLB files pass the Khronos glTF validat
 
 ```
 Config/Version.xcconfig     app version + build number (bump on every change)
-Config/Info.plist           extra Info.plist keys (background build task IDs)
+Config/Info.plist           extra iPhone Info.plist keys (background build IDs, Bonjour service)
+Config/Mac-Info.plist       extra Mac Info.plist keys (Bonjour service)
+Shared/                     code used by both apps: scan files, person frames/masks, mesh + zip, HQ protocol + server, build setup
+L23DMac/                    L23D HQ Mac app (window + photogrammetry builder)
+L23D/HQ                     iPhone side of HQ mode (find Macs, send, receive)
 L23D/App                    app entry and root view
 L23D/Models                 Scan record, scan modes and status
 L23D/Storage                where scan files live on disk
@@ -116,4 +131,4 @@ L23DTests                   unit tests (Swift Testing)
 
 Each scan is stored in `Application Support/Scans/<id>/` with `Images/` (photos), `Checkpoint/`, `Model/model.usdz`, `thumbnail.jpg`, and `Exports/`. Person scans also have `Masks/`, `Depth/`, and `frames.json` (camera pose per photo).
 
-The Xcode project uses synchronized folders: new files in `L23D/` or `L23DTests/` are picked up automatically.
+The Xcode project uses synchronized folders: new files in `L23D/`, `L23DMac/`, `Shared/` or `L23DTests/` are picked up automatically. Schemes: **L23D** (iPhone) and **L23D HQ** (Mac).

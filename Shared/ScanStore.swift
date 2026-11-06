@@ -5,7 +5,7 @@ import Foundation
 /// Scans/<uuid>/
 ///   Images/        photos taken during capture
 ///   Checkpoint/    photogrammetry checkpoint (lets a failed build resume)
-///   Model/model.usdz
+///   Model/model.usdz       (model-hq.usdz when built on a Mac)
 ///   thumbnail.jpg
 ///   Exports/       GLB / OBJ / USDZ files made for sharing
 ///   Masks/, Depth/, frames.json   person scans only
@@ -24,6 +24,12 @@ struct ScanFolder: Sendable, Hashable {
     var depth: URL { root.appending(path: "Depth", directoryHint: .isDirectory) }
     var personManifest: URL { root.appending(path: "frames.json") }
     var isPersonScan: Bool { FileManager.default.fileExists(atPath: personManifest.path(percentEncoded: false)) }
+
+    /// High-detail model built on a Mac (HQ mode).
+    var hqModelFile: URL { modelDirectory.appending(path: "model-hq.usdz") }
+    var hasHQModel: Bool { FileManager.default.fileExists(atPath: hqModelFile.path(percentEncoded: false)) }
+    /// The model to view and export: the HQ one when there is one.
+    var activeModelFile: URL { hasHQModel ? hqModelFile : modelFile }
 
     var hasModel: Bool { FileManager.default.fileExists(atPath: modelFile.path(percentEncoded: false)) }
     var hasThumbnail: Bool { FileManager.default.fileExists(atPath: thumbnail.path(percentEncoded: false)) }

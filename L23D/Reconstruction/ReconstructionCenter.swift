@@ -121,27 +121,7 @@ final class ReconstructionCenter {
                 try FileManager.default.removeItem(at: folder.modelFile)
             }
 
-            var configuration = PhotogrammetrySession.Configuration()
-            configuration.checkpointDirectory = folder.checkpoint
-            // Both capture modes save photos in the order they were taken.
-            configuration.sampleOrdering = .sequential
-            configuration.isObjectMaskingEnabled = true
-
-            let session: PhotogrammetrySession
-            if folder.isPersonScan {
-                // People: photos + person masks + LiDAR depth, fed one at a time.
-                // Skin and clothes have little texture, so look harder for features.
-                configuration.featureSensitivity = .high
-                configuration.ignoreBoundingBox = true
-                let manifest = try PersonFrameStore.loadManifest(from: folder)
-                let samples = PersonSampleSequence(
-                    folder: folder, manifest: manifest,
-                    limit: PhotogrammetrySession.limits.maximumNumberOfInputImages
-                )
-                session = try PhotogrammetrySession(input: samples, configuration: configuration)
-            } else {
-                session = try PhotogrammetrySession(input: folder.images, configuration: configuration)
-            }
+            let session = try ReconstructionSetup.makeSession(for: folder)
             job.session = session
             try session.process(requests: [.modelFile(url: folder.modelFile)])
 
@@ -156,7 +136,7 @@ final class ReconstructionCenter {
                 case .requestProgressInfo(_, let info):
                     job.remaining = info.estimatedRemainingTime
                     if let stage = info.processingStage {
-                        job.stage = Self.label(for: stage)
+                        job.stage = ReconstructionSetup.label(for: stage)
                     }
                 case .requestError(_, let error):
                     requestError = error
@@ -242,18 +222,6 @@ final class ReconstructionCenter {
         guard let scan = try? context.fetch(descriptor).first else { return }
         change(scan)
         try? context.save()
-    }
-
-    static func label(for stage: PhotogrammetrySession.Output.ProcessingStage) -> String {
-        switch stage {
-        case .preProcessing: "Preparing photos"
-        case .imageAlignment: "Lining up photos"
-        case .pointCloudGeneration: "Building point cloud"
-        case .meshGeneration: "Building mesh"
-        case .textureMapping: "Painting textures"
-        case .optimization: "Optimizing"
-        @unknown default: "Working"
-        }
     }
 
     static func describe(_ error: any Error) -> String {
