@@ -15,6 +15,14 @@ On iPhone, Apple only allows "reduced" detail. A Mac can build **Medium**, **Ful
 
 Both devices must be on the same Wi-Fi, and L23D must stay open on the iPhone until the model comes back. Builds run one at a time on the Mac. Received scans are kept in `~/Library/Application Support/L23D HQ/Jobs` (the window's **Show Jobs Folder** button).
 
+## Blender (photoreal)
+
+With Blender installed on the Mac, **L23D HQ makes a ready-to-render `.blend` for every model**: Cycles on the GPU, every texture map wired correctly, built-in HDRI lighting with a soft key light, a studio floor that catches shadows, a framed camera, and packed textures, plus a preview render. Click **Open in Blender** in the HQ window. **Build from Photos Folder…** builds from any camera's photos.
+
+Manual use: `blender -b --factory-startup --python Blender/l23d_scene.py -- --model model.usdz --out scene.blend --render preview.png`
+Command line HQ build: `L23DHQ.app/Contents/MacOS/L23DHQ --build <photos-folder> --detail full`
+Dev test photos: `Tools/synthetic_capture.py` renders a fake walk-around in Blender.
+
 ## What you need
 
 - A Mac with **Xcode 27.2** or newer

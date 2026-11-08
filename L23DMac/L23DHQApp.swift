@@ -5,11 +5,18 @@ import SwiftUI
 struct L23DHQApp: App {
     @State private var model = HQServerModel()
 
+    init() {
+        // Command-line mode: build from a photos folder and exit (no window).
+        if let code = LocalBuild.runFromCommandLineIfRequested() {
+            exit(code)
+        }
+    }
+
     var body: some Scene {
         WindowGroup("L23D HQ") {
             HQWindow()
                 .environment(model)
-                .frame(minWidth: 520, minHeight: 420)
+                .frame(minWidth: 620, minHeight: 460)
                 .task { await model.start() }
         }
         .windowResizability(.contentMinSize)
@@ -21,18 +28,25 @@ struct HQJobRow: Identifiable, Equatable {
     enum Status: Equatable {
         case receiving(Double)
         case building(Double, String)
-        case done(URL)
+        case makingScene
+        case done(model: URL, scene: BlenderSceneMaker.Result?, note: String?)
         case failed(String)
+    }
+
+    enum Source: Equatable {
+        case iPhone
+        case folder
     }
 
     let id: UUID
     let name: String
     let detail: HQDetail
+    let source: Source
     let started: Date
     var status: Status
 }
 
-/// Runs the server and keeps the window's state.
+/// Runs the server, local builds and Blender scenes, and keeps the window's state.
 @MainActor
 @Observable
 final class HQServerModel {
@@ -41,9 +55,10 @@ final class HQServerModel {
     private(set) var problem: String?
     private(set) var lastClient: String?
     private(set) var jobs: [HQJobRow] = []
+    private(set) var blenderURL: URL? = BlenderSceneMaker.findBlender()
     @ObservationIgnored private var server: HQServer?
 
-    static let jobsDirectory: URL = {
+    nonisolated static let jobsDirectory: URL = {
         let url = URL.applicationSupportDirectory.appending(path: "L23D HQ/Jobs", directoryHint: .isDirectory)
         try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         return url
@@ -85,13 +100,46 @@ final class HQServerModel {
         await start()
     }
 
+    /// Build from a folder of photos taken with any camera.
+    func buildFromFolder(_ folder: URL, detail: HQDetail) {
+        let id = UUID()
+        jobs.insert(HQJobRow(id: id, name: folder.lastPathComponent, detail: detail, source: .folder, started: .now, status: .building(0, "Copying photos")), at: 0)
+        Task {
+            do {
+                let output = try await LocalBuild.run(photos: folder, detail: detail, jobsDirectory: Self.jobsDirectory) { [weak self] progress in
+                    Task { @MainActor in
+                        let status: HQJobRow.Status = progress.stage == "Making Blender scene" ? .makingScene : .building(progress.fraction, progress.stage)
+                        self?.update(id, status: status)
+                    }
+                }
+                update(id, status: .done(model: output.model, scene: output.scene, note: output.sceneError))
+            } catch {
+                update(id, status: .failed((error as? LocalizedError)?.errorDescription ?? error.localizedDescription))
+            }
+        }
+    }
+
+    func refreshBlender() {
+        blenderURL = BlenderSceneMaker.findBlender()
+    }
+
     func reveal(_ url: URL) {
         NSWorkspace.shared.activateFileViewerSelecting([url])
+    }
+
+    func openInBlender(_ blend: URL) {
+        if let app = blenderURL?.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent() {
+            NSWorkspace.shared.open([blend], withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration())
+        } else {
+            NSWorkspace.shared.open(blend)
+        }
     }
 
     func revealJobsFolder() {
         NSWorkspace.shared.open(Self.jobsDirectory)
     }
+
+    // MARK: - Events
 
     private func handle(_ event: HQServerEvent) {
         switch event {
@@ -110,17 +158,42 @@ final class HQServerModel {
         case .jobBuilding(let job, let progress):
             upsert(job, status: .building(progress.fraction, progress.stage))
         case .jobFinished(let job, let model):
-            upsert(job, status: .done(model))
+            makeScene(for: job.jobID, model: model)
         case .jobFailed(let job, let message):
             upsert(job, status: .failed(message))
         }
     }
 
+    /// After the model went back to the iPhone, make the Blender scene on the Mac.
+    private func makeScene(for id: UUID, model: URL) {
+        refreshBlender()
+        guard let blender = blenderURL, let script = BlenderSceneMaker.scriptURL else {
+            update(id, status: .done(model: model, scene: nil, note: BlenderSceneMaker.Failure.noBlender.errorDescription))
+            return
+        }
+        update(id, status: .makingScene)
+        let directory = model.deletingLastPathComponent().deletingLastPathComponent().appending(path: "Blender")
+        Task {
+            do {
+                let scene = try await BlenderSceneMaker.make(model: model, in: directory, blender: blender, script: script)
+                update(id, status: .done(model: model, scene: scene, note: nil))
+            } catch {
+                update(id, status: .done(model: model, scene: nil, note: error.localizedDescription))
+            }
+        }
+    }
+
     private func upsert(_ job: HQJobStart, status: HQJobRow.Status) {
-        if let index = jobs.firstIndex(where: { $0.id == job.jobID }) {
-            jobs[index].status = status
+        if jobs.contains(where: { $0.id == job.jobID }) {
+            update(job.jobID, status: status)
         } else {
-            jobs.insert(HQJobRow(id: job.jobID, name: job.scanName, detail: job.detail, started: .now, status: status), at: 0)
+            jobs.insert(HQJobRow(id: job.jobID, name: job.scanName, detail: job.detail, source: .iPhone, started: .now, status: status), at: 0)
+        }
+    }
+
+    private func update(_ id: UUID, status: HQJobRow.Status) {
+        if let index = jobs.firstIndex(where: { $0.id == id }) {
+            jobs[index].status = status
         }
     }
 

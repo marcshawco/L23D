@@ -46,6 +46,11 @@
 			path = L23DMac;
 			sourceTree = "<group>";
 		};
+		0A0000000000000000000024 /* Blender */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Blender;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -78,6 +83,7 @@
 			children = (
 				0A0000000000000000000004 /* Config */,
 				0A0000000000000000000022 /* Shared */,
+				0A0000000000000000000024 /* Blender */,
 				0A0000000000000000000020 /* L23D */,
 				0A0000000000000000000021 /* L23DTests */,
 				0A0000000000000000000023 /* L23DMac */,
@@ -123,6 +129,7 @@
 			fileSystemSynchronizedGroups = (
 				0A0000000000000000000020 /* L23D */,
 				0A0000000000000000000022 /* Shared */,
+				0A0000000000000000000024 /* Blender */,
 			);
 			name = L23D;
 			packageProductDependencies = (
@@ -169,6 +176,7 @@
 			fileSystemSynchronizedGroups = (
 				0A0000000000000000000023 /* L23DMac */,
 				0A0000000000000000000022 /* Shared */,
+				0A0000000000000000000024 /* Blender */,
 			);
 			name = L23DHQ;
 			packageProductDependencies = (
