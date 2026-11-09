@@ -33,7 +33,8 @@ final class PhotogrammetryBuilder: HQBuilder {
         var fraction = 0.0
         var stage = "Starting"
         var requestError: (any Error)?
-        for try await item in session.outputs {
+        // The output stream doesn't end by itself; stop at completion.
+        outputLoop: for try await item in session.outputs {
             switch item {
             case .requestProgress(_, let value):
                 fraction = value
@@ -47,6 +48,8 @@ final class PhotogrammetryBuilder: HQBuilder {
                 requestError = error
             case .processingCancelled:
                 throw HQErrorMessage(message: "The build was cancelled on the Mac.")
+            case .processingComplete:
+                break outputLoop
             default:
                 break
             }

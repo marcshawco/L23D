@@ -15,7 +15,8 @@ struct ZipWriter {
         self.alignment = max(1, alignment)
     }
 
-    mutating func add(name: String, data: Data) {
+    /// - Parameter executable: mark the file runnable (e.g. a .command script) when unzipped on a Mac.
+    mutating func add(name: String, data: Data, executable: Bool = false) {
         let nameBytes = Data(name.utf8)
         let crc = CRC32.checksum(data)
         let localHeaderOffset = UInt32(output.count)
@@ -49,7 +50,7 @@ struct ZipWriter {
 
         // Central directory entry
         centralDirectory.appendLE(UInt32(0x0201_4B50))
-        centralDirectory.appendLE(UInt16(20))  // version made by
+        centralDirectory.appendLE(UInt16(0x0314)) // version made by: Unix, 2.0 (so permissions apply)
         centralDirectory.appendLE(UInt16(20))  // version needed
         centralDirectory.appendLE(UInt16(0))
         centralDirectory.appendLE(UInt16(0))
@@ -63,7 +64,8 @@ struct ZipWriter {
         centralDirectory.appendLE(UInt16(0))  // comment length
         centralDirectory.appendLE(UInt16(0))  // disk number
         centralDirectory.appendLE(UInt16(0))  // internal attributes
-        centralDirectory.appendLE(UInt32(0))  // external attributes
+        let mode: UInt32 = executable ? 0o100755 : 0o100644
+        centralDirectory.appendLE(mode << 16)  // external attributes: Unix file mode
         centralDirectory.appendLE(localHeaderOffset)
         centralDirectory.append(nameBytes)
 

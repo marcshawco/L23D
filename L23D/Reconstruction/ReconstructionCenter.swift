@@ -128,7 +128,8 @@ final class ReconstructionCenter {
             var requestError: (any Error)?
             var wasCancelled = false
 
-            for try await output in session.outputs {
+            // The output stream doesn't end by itself; stop at completion or cancellation.
+            outputLoop: for try await output in session.outputs {
                 switch output {
                 case .requestProgress(_, let fraction):
                     job.fraction = fraction
@@ -142,7 +143,10 @@ final class ReconstructionCenter {
                     requestError = error
                 case .processingCancelled:
                     wasCancelled = true
-                case .requestComplete, .processingComplete, .inputComplete,
+                    break outputLoop
+                case .processingComplete:
+                    break outputLoop
+                case .requestComplete, .inputComplete,
                      .invalidSample, .skippedSample, .automaticDownsampling, .stitchingIncomplete:
                     break
                 @unknown default:

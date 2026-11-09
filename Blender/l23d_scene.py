@@ -249,7 +249,8 @@ def add_camera(center, radius, lens=50.0, aspect=16 / 9):
     sensor = data.sensor_width
     hfov = 2 * math.atan(sensor / (2 * lens))
     vfov = 2 * math.atan(math.tan(hfov / 2) / aspect)
-    distance = radius / math.sin(min(hfov, vfov) / 2) * 1.15
+    # The bounding sphere is generous for most shapes, so frame a little inside it.
+    distance = radius / math.sin(min(hfov, vfov) / 2) * 0.85
     azimuth, elevation = math.radians(35), math.radians(15)
     offset = Vector((math.sin(azimuth) * math.cos(elevation), -math.cos(azimuth) * math.cos(elevation), math.sin(elevation)))
     camera.location = center + offset * distance

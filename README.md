@@ -2,7 +2,7 @@
 
 An iPhone app that scans objects and people into textured 3D models you can use in games and 3D editors (Blender, Unity, Godot, Unreal).
 
-**Status:** v0.7.0. All v1 features are built (three scan modes, on-phone building, game export), plus **HQ mode**: build Medium/Full/Raw detail models on your Mac over Wi-Fi. **Nothing that uses the camera has been tested on a real iPhone yet** — v1.0.0 will be tagged after that test. See "What works now" below.
+**Status:** v0.9.0. All v1 features are built (three scan modes, on-phone building, game export), plus **HQ mode**: build Medium/Full/Raw detail models on your Mac over Wi-Fi. **Nothing that uses the camera has been tested on a real iPhone yet** — v1.0.0 will be tagged after that test. See "What works now" below.
 
 ## HQ mode (build on your Mac)
 
@@ -18,6 +18,8 @@ Both devices must be on the same Wi-Fi, and L23D must stay open on the iPhone un
 ## Blender (photoreal)
 
 With Blender installed on the Mac, **L23D HQ makes a ready-to-render `.blend` for every model**: Cycles on the GPU, every texture map wired correctly, built-in HDRI lighting with a soft key light, a studio floor that catches shadows, a framed camera, and packed textures, plus a preview render. Click **Open in Blender** in the HQ window. **Build from Photos Folder…** builds from any camera's photos.
+
+**Blender kit export (from the iPhone, no Mac app needed):** a .zip with `model.glb`, `l23d_scene.py`, and `Open in Blender.command`. Unzip it on a Mac and double-click the command: it builds the same photoreal `scene.blend` and opens it. (If macOS blocks it: right-click → Open.)
 
 Manual use: `blender -b --factory-startup --python Blender/l23d_scene.py -- --model model.usdz --out scene.blend --render preview.png`
 Command line HQ build: `L23DHQ.app/Contents/MacOS/L23DHQ --build <photos-folder> --detail full`
@@ -61,7 +63,7 @@ xcodebuild build -project L23D.xcodeproj -scheme L23D -destination 'generic/plat
 - **Scan library** with thumbnails, live build progress, rename, rebuild, and delete
 - **3D viewer:** drag to spin, pinch to zoom. Shows real size (cm), triangle count, photo count, and storage used.
 - **View in AR** (AR Quick Look) and **Share USDZ**
-- **Export for games & 3D apps:** GLB, OBJ (.zip), or USDZ, with these options:
+- **Export for games & 3D apps:** **Blender kit** (default), GLB, OBJ (.zip), or USDZ, with these options:
   - **Origin point:** bottom center (sits on the ground), center, or as scanned
   - **Units** (OBJ only): meters or centimeters
   - **Detail:** full, high (50%), low (25%) or very low (10%) triangles — for game LODs

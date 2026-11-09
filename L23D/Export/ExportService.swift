@@ -4,12 +4,13 @@ import Foundation
 /// What the user picked on the export screen.
 struct ExportOptions: Sendable, Equatable {
     enum Format: String, CaseIterable, Identifiable, Sendable {
-        case glb, obj, usdz
+        case blender, glb, obj, usdz
         var id: String { rawValue }
-        var title: String { rawValue.uppercased() }
-        var fileExtension: String { self == .obj ? "zip" : rawValue }
+        var title: String { self == .blender ? "Blender" : rawValue.uppercased() }
+        var fileExtension: String { (self == .obj || self == .blender) ? "zip" : rawValue }
         var help: String {
             switch self {
+            case .blender: "Photoreal Blender kit (.zip): the model plus a script that sets up Cycles lighting, a shadow floor and a camera. On a Mac, double-click “Open in Blender”."
             case .glb: "Best for Unity, Godot, Unreal, Blender and the web. One file with the textures inside."
             case .obj: "Works almost everywhere. Comes as a .zip with the model, its material, and textures."
             case .usdz: "Apple's format. Best for AR Quick Look, Reality Composer, and Blender 4+."
@@ -71,7 +72,7 @@ struct ExportOptions: Sendable, Equatable {
         }
     }
 
-    var format: Format = .glb
+    var format: Format = .blender
     var detail: Detail = .full
     var pivot: Pivot = .bottomCenter
     /// Only used for OBJ, which has no unit of its own. GLB and USDZ are always meters.
@@ -113,6 +114,7 @@ enum ExportService {
 
         let mesh = try prepare(MeshLoader.load(url: modelURL), realSize: realSize, options: options)
         let data: Data = switch options.format {
+        case .blender: try BlenderKit.zipData(glb: GLBWriter.data(for: mesh, name: name, generator: generator), name: name)
         case .glb: try GLBWriter.data(for: mesh, name: name, generator: generator)
         case .obj: try OBJWriter.zipData(for: mesh, name: name)
         case .usdz: try USDZWriter.data(for: mesh, name: name)
@@ -208,5 +210,54 @@ enum ExportService {
         let cleaned = String(name.unicodeScalars.filter { allowed.contains($0) })
             .trimmingCharacters(in: .whitespaces)
         return cleaned.isEmpty ? "Model" : String(cleaned.prefix(80))
+    }
+}
+
+/// "Blender kit": model.glb + the photoreal scene script + a double-click launcher for Mac.
+enum BlenderKit {
+    static func zipData(glb: Data, name: String) throws -> Data {
+        guard let scriptURL = Bundle.main.url(forResource: "l23d_scene", withExtension: "py") else {
+            throw MeshError.unreadable("the Blender script is missing from the app")
+        }
+        var zip = ZipWriter(alignment: 4)
+        zip.add(name: "model.glb", data: glb)
+        zip.add(name: "l23d_scene.py", data: try Data(contentsOf: scriptURL))
+        zip.add(name: "Open in Blender.command", data: Data(launcher.utf8), executable: true)
+        zip.add(name: "README.txt", data: Data(readme(name: name).utf8))
+        return zip.finish()
+    }
+
+    static let launcher = """
+    #!/bin/bash
+    # Builds a photoreal Blender scene from model.glb, then opens it.
+    cd "$(dirname "$0")"
+    BLENDER="/Applications/Blender.app/Contents/MacOS/Blender"
+    [ -x "$BLENDER" ] || BLENDER="$HOME/Applications/Blender.app/Contents/MacOS/Blender"
+    if [ ! -x "$BLENDER" ]; then
+      echo "Blender isn't installed. Get it free from https://www.blender.org/download/"
+      read -n 1 -p "Press any key to close."
+      exit 1
+    fi
+    echo "Setting up the scene in Blender (about a minute)…"
+    "$BLENDER" -b --factory-startup --python l23d_scene.py -- --model model.glb --out scene.blend --render preview.png || { read -n 1 -p "Something went wrong. Press any key."; exit 1; }
+    open -a "${BLENDER%/Contents/MacOS/Blender}" scene.blend
+
+    """
+
+    static func readme(name: String) -> String {
+        """
+        \(name) — exported by L23D
+
+        On a Mac with Blender installed:
+          Double-click "Open in Blender.command". It makes scene.blend (photoreal Cycles setup:
+          HDRI lighting, soft key light, shadow floor, framed camera) and opens it.
+          If macOS blocks it, right-click it, choose Open, then Open again.
+
+        Any computer, by hand:
+          blender -b --factory-startup --python l23d_scene.py -- --model model.glb --out scene.blend
+          or in Blender: File > Import > glTF 2.0 > model.glb
+
+        Model: meters, Y-up glTF (Blender imports it Z-up), PBR textures inside the .glb.
+        """
     }
 }

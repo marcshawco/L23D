@@ -106,10 +106,10 @@ final class HQServerModel {
         jobs.insert(HQJobRow(id: id, name: folder.lastPathComponent, detail: detail, source: .folder, started: .now, status: .building(0, "Copying photos")), at: 0)
         Task {
             do {
-                let output = try await LocalBuild.run(photos: folder, detail: detail, jobsDirectory: Self.jobsDirectory) { [weak self] progress in
+                let output = try await LocalBuild.run(photos: folder, detail: detail, jobsDirectory: Self.jobsDirectory, blender: blenderURL) { progress in
                     Task { @MainActor in
                         let status: HQJobRow.Status = progress.stage == "Making Blender scene" ? .makingScene : .building(progress.fraction, progress.stage)
-                        self?.update(id, status: status)
+                        self.update(id, status: status)
                     }
                 }
                 update(id, status: .done(model: output.model, scene: output.scene, note: output.sceneError))

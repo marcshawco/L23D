@@ -122,3 +122,36 @@ struct DeletePhotosTests {
         #expect(FileManager.default.fileExists(atPath: folder.exports.appending(path: "a.glb").path(percentEncoded: false)))
     }
 }
+
+struct BlenderKitTests {
+    @Test func kitHasModelScriptAndRunnableLauncher() throws {
+        let mesh = try SampleModel.meshData()
+        let zip = try BlenderKit.zipData(glb: GLBWriter.data(for: mesh), name: "Box")
+        let entries = ZipReader.storedEntries(in: zip)
+        #expect(entries.map(\.name) == ["model.glb", "l23d_scene.py", "Open in Blender.command", "README.txt"])
+        #expect(entries[0].data.prefix(4) == Data("glTF".utf8))
+        #expect(String(decoding: entries[1].data, as: UTF8.self).contains("L23D_RESULT"))
+        #expect(String(decoding: entries[2].data, as: UTF8.self).hasPrefix("#!/bin/bash"))
+
+        // The launcher is marked executable (Unix mode 755) in the central directory.
+        let bytes = [UInt8](zip)
+        var modes: [UInt32] = []
+        var i = 0
+        while i + 46 <= bytes.count {
+            if bytes[i] == 0x50, bytes[i + 1] == 0x4B, bytes[i + 2] == 0x01, bytes[i + 3] == 0x02 {
+                let attr = UInt32(bytes[i + 38]) | UInt32(bytes[i + 39]) << 8 | UInt32(bytes[i + 40]) << 16 | UInt32(bytes[i + 41]) << 24
+                modes.append((attr >> 16) & 0o777)
+                let nameLength = Int(bytes[i + 28]) | Int(bytes[i + 29]) << 8
+                i += 46 + nameLength
+            } else {
+                i += 1
+            }
+        }
+        #expect(modes == [0o644, 0o644, 0o755, 0o644])
+    }
+
+    @Test func blenderIsTheDefaultExport() {
+        #expect(ExportOptions().format == .blender)
+        #expect(ExportOptions.Format.blender.fileExtension == "zip")
+    }
+}

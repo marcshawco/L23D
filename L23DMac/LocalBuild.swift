@@ -30,7 +30,7 @@ enum LocalBuild {
     }
 
     static func run(
-        photos source: URL, detail: HQDetail, jobsDirectory: URL, name: String? = nil,
+        photos source: URL, detail: HQDetail, jobsDirectory: URL, name: String? = nil, blender: URL?,
         progress: @escaping @Sendable (HQProgress) -> Void
     ) async throws -> Output {
         let jobID = UUID()
@@ -44,7 +44,7 @@ enum LocalBuild {
         )
         let model = try await PhotogrammetryBuilder().build(job: job, folder: folder, progress: progress)
         var output = Output(folder: folder, model: model)
-        if let blender = BlenderSceneMaker.findBlender(), let script = BlenderSceneMaker.scriptURL {
+        if let blender, let script = BlenderSceneMaker.scriptURL {
             progress(HQProgress(fraction: 1, stage: "Making Blender scene"))
             do {
                 output.scene = try await BlenderSceneMaker.make(
@@ -73,12 +73,16 @@ enum LocalBuild {
         let detail = value("--detail").flatMap(HQDetail.init(rawValue:)) ?? .full
         let jobs = value("--out").map { URL(fileURLWithPath: $0) } ?? HQServerModel.jobsDirectory
 
+        // Look Blender up now, on the main thread: the lookup needs the main thread,
+        // which is about to block while the build runs.
+        let blender = BlenderSceneMaker.findBlender()
         let done = DispatchSemaphore(value: 0)
         let code = ExitCode()
         Task.detached {
             do {
-                let output = try await run(photos: source, detail: detail, jobsDirectory: jobs) { progress in
+                let output = try await run(photos: source, detail: detail, jobsDirectory: jobs, blender: blender) { progress in
                     print(String(format: "progress %3.0f%% %@", progress.fraction * 100, progress.stage))
+                    fflush(stdout)
                 }
                 var result: [String: Any] = ["model": output.model.path(percentEncoded: false)]
                 if let scene = output.scene {
