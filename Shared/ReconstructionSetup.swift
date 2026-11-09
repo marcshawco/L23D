@@ -4,8 +4,13 @@ import RealityKit
 /// One place that decides how a scan folder is fed to `PhotogrammetrySession`,
 /// so the iPhone and the Mac build the same way (only the detail level differs).
 enum ReconstructionSetup {
-    static func makeSession(for folder: ScanFolder) throws -> PhotogrammetrySession {
+    static func makeSession(for folder: ScanFolder, detail: HQDetail? = nil) throws -> PhotogrammetrySession {
         var configuration = PhotogrammetrySession.Configuration()
+        #if os(macOS)
+        if let spec = detail?.customSpecification {
+            configuration.customDetailSpecification = spec
+        }
+        #endif
         configuration.checkpointDirectory = folder.checkpoint
         // Every capture mode saves photos in the order they were taken.
         configuration.sampleOrdering = .sequential

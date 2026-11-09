@@ -27,7 +27,7 @@ final class PhotogrammetryBuilder: HQBuilder {
         let output = folder.modelDirectory.appending(path: "model-\(job.detail.rawValue).usdz")
         try? FileManager.default.removeItem(at: output)
 
-        let session = try ReconstructionSetup.makeSession(for: folder)
+        let session = try ReconstructionSetup.makeSession(for: folder, detail: job.detail)
         try session.process(requests: [.modelFile(url: output, detail: job.detail.photogrammetryDetail)])
 
         var fraction = 0.0

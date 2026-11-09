@@ -41,8 +41,8 @@ struct HQLoopbackTests {
         return folder
     }
 
-    private func startServer(code: String, builder: FakeBuilder) async throws -> (HQServer, UInt16, URL) {
-        let jobs = FileManager.default.temporaryDirectory.appending(path: "hq-server-\(UUID().uuidString)")
+    private func startServer(code: String, builder: FakeBuilder, jobs existing: URL? = nil) async throws -> (HQServer, UInt16, URL) {
+        let jobs = existing ?? FileManager.default.temporaryDirectory.appending(path: "hq-server-\(UUID().uuidString)")
         let server = HQServer(pairingCode: code, jobsDirectory: jobs, builder: builder) { _ in }
         let port = try await server.start(serviceName: nil)
         return (server, port, jobs)
@@ -100,6 +100,78 @@ struct HQLoopbackTests {
     }
 }
 
+extension HQLoopbackTests {
+    private func local(_ port: UInt16) -> NWEndpoint {
+        .hostPort(host: "127.0.0.1", port: NWEndpoint.Port(rawValue: port)!)
+    }
+
+    @Test func droppedConnectionCanFetchTheModelLater() async throws {
+        let builder = FakeBuilder()
+        let (server, port, jobs) = try await startServer(code: "123456", builder: builder)
+        defer { server.stop(); try? FileManager.default.removeItem(at: jobs) }
+        let folder = try makeScanFolder()
+        defer { try? FileManager.default.removeItem(at: folder.root.deletingLastPathComponent()) }
+
+        // Send, then drop the connection as soon as the photos are on the Mac.
+        let transfer = HQTransfer()
+        let run = Task {
+            await transfer.run(
+                folder: folder, scanName: "Test", mode: .object, detail: .ultra,
+                endpoint: local(port), pairingCode: "123456", destination: folder.hqModelFile, deviceName: "Test iPhone"
+            )
+        }
+        while transfer.sentJobID == nil { try await Task.sleep(for: .milliseconds(20)) }
+        transfer.cancel()
+        await run.value
+        guard case .failed = transfer.phase else {
+            Issue.record("expected the dropped run to fail, got \(transfer.phase)")
+            return
+        }
+        #expect(!folder.hasHQModel)
+        let jobID = try #require(transfer.sentJobID)
+
+        // The Mac kept building; a new connection gets the model.
+        let again = HQTransfer()
+        await again.fetch(jobID: jobID, endpoint: local(port), pairingCode: "123456", destination: folder.hqModelFile, deviceName: "Test iPhone")
+        #expect(again.phase == .done(folder.hqModelFile))
+        #expect(builder.job?.detail == .ultra)
+        #expect(try await ModelInspector.stats(for: folder.hqModelFile).triangleCount == 12)
+
+        // After the Mac app restarts, the finished model is still found on disk.
+        server.stop()
+        let (restarted, newPort, _) = try await startServer(code: "123456", builder: FakeBuilder(), jobs: jobs)
+        defer { restarted.stop() }
+        try FileManager.default.removeItem(at: folder.hqModelFile)
+        let third = HQTransfer()
+        await third.fetch(jobID: jobID, endpoint: local(newPort), pairingCode: "123456", destination: folder.hqModelFile, deviceName: "Test iPhone")
+        #expect(third.phase == .done(folder.hqModelFile))
+    }
+
+    @Test func fetchingAnUnknownJobExplains() async throws {
+        let (server, port, jobs) = try await startServer(code: "123456", builder: FakeBuilder())
+        defer { server.stop(); try? FileManager.default.removeItem(at: jobs) }
+        let folder = try makeScanFolder()
+        defer { try? FileManager.default.removeItem(at: folder.root.deletingLastPathComponent()) }
+
+        let transfer = HQTransfer()
+        await transfer.fetch(jobID: UUID(), endpoint: local(port), pairingCode: "123456", destination: folder.hqModelFile, deviceName: "Test iPhone")
+        guard case .failed(let message) = transfer.phase else {
+            Issue.record("expected failure, got \(transfer.phase)")
+            return
+        }
+        #expect(message.contains("doesn't have that build"))
+    }
+
+    @Test func pendingJobIsRemembered() {
+        let scanID = UUID()
+        let job = HQPendingJob(jobID: UUID(), macName: "Studio", detail: .ultra)
+        HQPendingJob.save(job, for: scanID)
+        #expect(HQPendingJob.load(for: scanID) == job)
+        HQPendingJob.save(nil, for: scanID)
+        #expect(HQPendingJob.load(for: scanID) == nil)
+    }
+}
+
 struct HQProtocolTests {
     @Test func headerRoundTrips() {
         let header = HQMessageHeader(type: .fileData, length: 5_000_000_123)
@@ -121,7 +193,7 @@ struct HQProtocolTests {
     }
 
     @Test func detailLevelsAreDescribed() {
-        #expect(HQDetail.allCases.map(\.title) == ["Medium", "Full", "Raw"])
+        #expect(HQDetail.allCases.map(\.title) == ["Medium", "Full", "Raw", "Ultra"])
         #expect(HQDetail.allCases.allSatisfy { !$0.help.isEmpty })
     }
 }

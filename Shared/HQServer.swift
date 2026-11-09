@@ -27,6 +27,7 @@ final class HQServer: @unchecked Sendable {
     private let onEvent: @Sendable (HQServerEvent) -> Void
     private let queue = DispatchQueue(label: "l23d.hq.server")
     private var listener: NWListener?
+    private let registry = HQJobRegistry()
 
     init(pairingCode: String, jobsDirectory: URL, builder: any HQBuilder, onEvent: @escaping @Sendable (HQServerEvent) -> Void) {
         self.pairingCode = pairingCode
@@ -97,13 +98,20 @@ final class HQServer: @unchecked Sendable {
             onEvent(.clientConnected(hello.deviceName))
 
             while true {
-                let job: HQJobStart
+                let message: (type: HQMessageType?, payload: Data)
                 do {
-                    job = try await connection.receiveJSON(.jobStart, as: HQJobStart.self)
+                    message = try await connection.receiveMessage()
                 } catch {
                     break // client finished and closed
                 }
-                try await handle(job, on: connection)
+                switch message.type {
+                case .jobStart:
+                    try await handle(try JSONDecoder().decode(HQJobStart.self, from: message.payload), on: connection)
+                case .fetch:
+                    try await handleFetch(try JSONDecoder().decode(HQFetch.self, from: message.payload).jobID, on: connection)
+                default:
+                    throw HQTransferError.unexpected(message.type, expected: .jobStart)
+                }
             }
         } catch {
             // Connection-level failure; nothing more to tell the client.
@@ -131,45 +139,110 @@ final class HQServer: @unchecked Sendable {
             }
             let end = try await connection.receiveMessage()
             guard end.type == .jobEnd else { throw HQTransferError.unexpected(end.type, expected: .jobEnd) }
-
-            // 2. Build, sending progress about once a second.
-            let latest = LatestProgress()
-            let ticker = Task {
-                var last: HQProgress?
-                while !Task.isCancelled {
-                    if let now = latest.value, now != last {
-                        last = now
-                        try? await connection.send(.progress, json: now)
-                    }
-                    try? await Task.sleep(for: .seconds(1))
-                }
-            }
-            let model: URL
-            do {
-                model = try await builder.build(job: job, folder: folder) { [onEvent] progress in
-                    latest.value = progress
-                    onEvent(.jobBuilding(job, progress))
-                }
-            } catch {
-                ticker.cancel()
-                _ = await ticker.result
-                throw error
-            }
-            ticker.cancel()
-            _ = await ticker.result
-
-            // 3. Send the model.
-            let size = (try? model.resourceValues(forKeys: [.fileSizeKey]).fileSize).flatMap { $0 } ?? 0
-            try await connection.send(.resultHeader, json: HQResultHeader(size: Int64(size)))
-            try await connection.sendFile(.resultData, url: model)
-            onEvent(.jobFinished(job, model: model))
         } catch {
             let message = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
             onEvent(.jobFailed(job, message))
             try? await connection.send(.error, json: HQErrorMessage(message: message))
             throw error
         }
+
+        // 2. Build in its own task, so it finishes (and the Mac keeps the model)
+        //    even if the iPhone drops off the Wi-Fi. The iPhone can fetch it later.
+        let latest = LatestProgress()
+        let build = Task { [builder, onEvent] () throws -> URL in
+            do {
+                let model = try await builder.build(job: job, folder: folder) { progress in
+                    latest.value = progress
+                    onEvent(.jobBuilding(job, progress))
+                }
+                onEvent(.jobFinished(job, model: model))
+                return model
+            } catch {
+                onEvent(.jobFailed(job, (error as? LocalizedError)?.errorDescription ?? error.localizedDescription))
+                throw error
+            }
+        }
+        await registry.add(job.jobID, HQJobRegistry.Entry(build: build, progress: latest))
+
+        // 3. Send progress, then the model.
+        try await deliver(build: build, progress: latest, on: connection)
     }
+
+    /// The iPhone asks again for a job it sent before (its connection dropped).
+    private func handleFetch(_ jobID: UUID, on connection: HQConnection) async throws {
+        if let entry = await registry.entry(jobID) {
+            try await deliver(build: entry.build, progress: entry.progress, on: connection)
+            return
+        }
+        // Built before the Mac app restarted: the model is still on disk.
+        let folder = ScanFolder(root: jobsDirectory.appending(path: jobID.uuidString, directoryHint: .isDirectory))
+        if let model = Self.finishedModel(in: folder) {
+            try await sendResult(model, on: connection)
+        } else {
+            try await connection.send(.error, json: HQErrorMessage(
+                message: "This Mac doesn't have that build anymore (it may have been stopped). Send the photos again."
+            ))
+        }
+    }
+
+    /// Newest built model in a job folder, if any.
+    static func finishedModel(in folder: ScanFolder) -> URL? {
+        let items = (try? FileManager.default.contentsOfDirectory(
+            at: folder.modelDirectory, includingPropertiesForKeys: [.contentModificationDateKey]
+        )) ?? []
+        return items
+            .filter { $0.lastPathComponent.hasPrefix("model-") && $0.pathExtension.lowercased() == "usdz" }
+            .max {
+                let a = (try? $0.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+                let b = (try? $1.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+                return a < b
+            }
+    }
+
+    private func deliver(build: Task<URL, any Error>, progress latest: LatestProgress, on connection: HQConnection) async throws {
+        let ticker = Task {
+            var last: HQProgress?
+            while !Task.isCancelled {
+                if let now = latest.value, now != last {
+                    last = now
+                    try? await connection.send(.progress, json: now)
+                }
+                try? await Task.sleep(for: .seconds(1))
+            }
+        }
+        let model: URL
+        do {
+            model = try await build.value
+        } catch {
+            ticker.cancel()
+            _ = await ticker.result
+            let message = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            try? await connection.send(.error, json: HQErrorMessage(message: message))
+            throw error
+        }
+        ticker.cancel()
+        _ = await ticker.result
+        try await sendResult(model, on: connection)
+    }
+
+    private func sendResult(_ model: URL, on connection: HQConnection) async throws {
+        let size = (try? model.resourceValues(forKeys: [.fileSizeKey]).fileSize).flatMap { $0 } ?? 0
+        try await connection.send(.resultHeader, json: HQResultHeader(size: Int64(size)))
+        try await connection.sendFile(.resultData, url: model)
+    }
+}
+
+/// Builds the server knows about (running or finished) since it started.
+actor HQJobRegistry {
+    struct Entry: Sendable {
+        var build: Task<URL, any Error>
+        var progress: LatestProgress
+    }
+
+    private var entries: [UUID: Entry] = [:]
+
+    func add(_ id: UUID, _ entry: Entry) { entries[id] = entry }
+    func entry(_ id: UUID) -> Entry? { entries[id] }
 }
 
 /// Thread-safe "latest value" box.

@@ -2,18 +2,20 @@
 
 An iPhone app that scans objects and people into textured 3D models you can use in games and 3D editors (Blender, Unity, Godot, Unreal).
 
-**Status:** v0.9.0. All v1 features are built (three scan modes, on-phone building, game export), plus **HQ mode**: build Medium/Full/Raw detail models on your Mac over Wi-Fi. **Nothing that uses the camera has been tested on a real iPhone yet** — v1.0.0 will be tagged after that test. See "What works now" below.
+**Status:** v0.10.0. All v1 features are built (three scan modes, on-phone building, game export), plus **HQ mode**: build Medium/Full/Raw/Ultra detail models on your Mac over Wi-Fi, and a photoreal Blender scene for each one. **Nothing that uses the camera has been tested on a real iPhone yet** — v1.0.0 will be tagged after that test. See "What works now" below.
 
 ## HQ mode (build on your Mac)
 
-On iPhone, Apple only allows "reduced" detail. A Mac can build **Medium**, **Full**, or **Raw** detail from the same photos.
+On iPhone, Apple only allows "reduced" detail. A Mac can build **Medium**, **Full**, **Raw**, or **Ultra** detail from the same photos.
 
-1. In Xcode, pick the **L23D HQ** scheme and **My Mac**, then press Run. Allow incoming network connections if macOS asks.
+**Ultra** is made for photoreal Blender renders: a dense mesh, 8K lossless (PNG) textures, and a **displacement map** for real surface relief. The Blender scene wires the displacement in for you (tune it with the **L23D Relief** node in the material).
+
+1. Open **L23D HQ** from Applications (`Tools/install_mac_app.sh` installs or updates it; or run the **L23D HQ** scheme in Xcode). Allow incoming network connections if macOS asks.
 2. The L23D HQ window shows a **6-digit pairing code**.
 3. On the iPhone, open a finished scan → **•••** → **Build HQ on Mac…**. Pick your Mac, type the code (saved after the first time), pick a detail level, and tap **Send**.
 4. The photos go over your Wi-Fi, the Mac builds, and the HQ model comes back by itself. The viewer, AR, share, and export then use the HQ model. **••• → Use Phone Model** switches back.
 
-Both devices must be on the same Wi-Fi, and L23D must stay open on the iPhone until the model comes back. Builds run one at a time on the Mac. Received scans are kept in `~/Library/Application Support/L23D HQ/Jobs` (the window's **Show Jobs Folder** button).
+Both devices must be on the same Wi-Fi. If the connection drops after the photos are sent, the Mac keeps building: open **Build HQ on Mac…** again and tap **Get Finished Model**. Builds run one at a time on the Mac. Received scans are kept in `~/Library/Application Support/L23D HQ/Jobs` (the window's **Show Jobs Folder** button).
 
 ## Blender (photoreal)
 
@@ -110,6 +112,8 @@ Models are in meters with Y pointing up. GLB files pass the Khronos glTF validat
 | ~~0.6.0~~ | ~~Polish: background building, heat/storage warnings, low-poly export, tips~~ (done) |
 | 1.0.0 | After a full on-device test of all three modes |
 | ~~0.7.0~~ | ~~HQ mode: build higher-detail models on a Mac~~ (done) |
+| ~~0.8.0–0.9.0~~ | ~~Photoreal Blender scene, Blender kit export~~ (done) |
+| ~~0.10.0~~ | ~~Ultra detail (8K + displacement), fetch a model after a dropped connection~~ (done) |
 
 ## How it works
 

@@ -20,7 +20,7 @@ import RealityKit
 ///                 ◀───────────────── resultHeader + resultData | error
 enum HQ {
     static let serviceType = "_l23d-hq._tcp"
-    static let protocolVersion = 1
+    static let protocolVersion = 2 // 2: Ultra detail + fetch a finished job again
     /// Chunk size for streaming files.
     static let chunkSize = 1 << 20
     /// Largest JSON/small message we accept in memory.
@@ -28,7 +28,7 @@ enum HQ {
 }
 
 enum HQDetail: String, Codable, CaseIterable, Identifiable, Sendable {
-    case medium, full, raw
+    case medium, full, raw, ultra
 
     var id: String { rawValue }
 
@@ -37,6 +37,7 @@ enum HQDetail: String, Codable, CaseIterable, Identifiable, Sendable {
         case .medium: "Medium"
         case .full: "Full"
         case .raw: "Raw"
+        case .ultra: "Ultra"
         }
     }
 
@@ -45,6 +46,7 @@ enum HQDetail: String, Codable, CaseIterable, Identifiable, Sendable {
         case .medium: "A step up from the phone. Quick to build, small files."
         case .full: "High detail with 4K-class textures. Best for most games and renders."
         case .raw: "Every detail the photos hold. Huge files (millions of triangles) — for film, close-ups, or 3D printing."
+        case .ultra: "Made for photoreal Blender renders: a dense mesh, 8K lossless textures, plus a displacement map for fine surface relief. Big files."
         }
     }
 
@@ -54,7 +56,19 @@ enum HQDetail: String, Codable, CaseIterable, Identifiable, Sendable {
         case .medium: .medium
         case .full: .full
         case .raw: .raw
+        case .ultra: .custom
         }
+    }
+
+    /// Only used by `.ultra` (Apple's `.custom` detail).
+    var customSpecification: PhotogrammetrySession.Configuration.CustomDetailSpecification? {
+        guard self == .ultra else { return nil }
+        var spec = PhotogrammetrySession.Configuration.CustomDetailSpecification()
+        spec.maximumPolygonCount = 1_000_000
+        spec.maximumTextureDimension = .eightK
+        spec.outputTextureMaps = .all // color, normal, roughness, AO, displacement
+        spec.textureFormat = .png // lossless (normal + displacement keep their full precision)
+        return spec
     }
     #endif
 }
@@ -70,6 +84,12 @@ enum HQMessageType: UInt32, Sendable {
     case progress
     case resultHeader
     case resultData
+    /// iPhone → Mac: "send me the model for this job" (after a dropped connection).
+    case fetch
+}
+
+struct HQFetch: Codable, Sendable {
+    var jobID: UUID
 }
 
 struct HQHello: Codable, Sendable {

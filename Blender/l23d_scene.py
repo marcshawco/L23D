@@ -11,6 +11,8 @@ What it sets up:
   * Imports USDZ / USD / GLB / glTF / OBJ (meters, Z-up), centers it on the floor.
   * Fixes materials: color maps sRGB, data maps (normal/roughness/metallic) Non-Color,
     normal map wired, physically plausible specular.
+  * Ultra models: pulls out Apple's displacement map (left unconnected in the USDZ) and
+    wires real displacement; tune it with the "L23D Relief" value node.
   * Cycles on the GPU (Metal/OptiX/CUDA when available) with denoising, AgX color.
   * Lighting: an HDRI that ships with Blender for realistic reflections, plus a soft key
     light; a neutral studio floor that catches shadows; matching background.
@@ -23,8 +25,10 @@ import argparse
 import json
 import math
 import os
+import re
 import sys
 import warnings
+import zipfile
 
 import bpy
 from mathutils import Vector
@@ -161,6 +165,67 @@ def fix_materials(meshes):
                 bsdf.inputs["Metallic"].default_value = 0.0
             fixed += 1
     return fixed, textures
+
+
+# ---------------------------------------------------------------- displacement (Ultra models)
+
+def find_displacement(model_path, work_dir):
+    """Apple's Ultra (.custom) models ship a displacement map that the USD material leaves
+    unconnected, so importers skip it. Pulls it out of the USDZ (or a *_disp* file beside the model)."""
+    pattern = re.compile(r"_disp\d*\.(png|exr|tif|tiff)$", re.IGNORECASE)
+    if model_path.lower().endswith(".usdz") and zipfile.is_zipfile(model_path):
+        with zipfile.ZipFile(model_path) as archive:
+            names = [n for n in archive.namelist() if pattern.search(n)]
+            if names:
+                os.makedirs(work_dir, exist_ok=True)
+                target = os.path.join(work_dir, os.path.basename(names[0]))
+                with archive.open(names[0]) as src, open(target, "wb") as dst:
+                    dst.write(src.read())
+                return target
+    folder = os.path.dirname(model_path)
+    for name in sorted(os.listdir(folder)):
+        if pattern.search(name):
+            return os.path.join(folder, name)
+    return None
+
+
+def add_displacement(meshes, image_path, radius):
+    """Real surface relief: true displacement with a mid level of 0.5 (Apple's encoding).
+    Strength lives in one Value node named "L23D Relief" so it is easy to tune."""
+    image = bpy.data.images.load(image_path, check_existing=True)
+    try:
+        image.colorspace_settings.name = "Non-Color"
+    except TypeError:
+        pass
+    done = 0
+    for mesh in meshes:
+        for slot in mesh.material_slots:
+            mat = slot.material
+            if mat is None or not mat.use_nodes:
+                continue
+            nodes, links = mat.node_tree.nodes, mat.node_tree.links
+            output = next((n for n in nodes if n.type == "OUTPUT_MATERIAL" and n.is_active_output), None)
+            output = output or next((n for n in nodes if n.type == "OUTPUT_MATERIAL"), None)
+            if output is None or output.inputs["Displacement"].is_linked:
+                continue
+            tex = nodes.new("ShaderNodeTexImage")
+            tex.image = image
+            tex.interpolation = "Cubic"
+            tex.label = "Displacement"
+            relief = nodes.new("ShaderNodeValue")
+            relief.name = relief.label = "L23D Relief"
+            relief.outputs[0].default_value = round(radius * 0.02, 5)
+            disp = nodes.new("ShaderNodeDisplacement")
+            disp.inputs["Midlevel"].default_value = 0.5
+            links.new(tex.outputs["Color"], disp.inputs["Height"])
+            links.new(relief.outputs[0], disp.inputs["Scale"])
+            links.new(disp.outputs["Displacement"], output.inputs["Displacement"])
+            if hasattr(mat, "displacement_method"):
+                mat.displacement_method = "BOTH"
+            elif hasattr(mat, "cycles"):
+                mat.cycles.displacement_method = "BOTH"
+            done += 1
+    return done
 
 
 # ---------------------------------------------------------------- lighting, floor, camera
@@ -323,6 +388,9 @@ def main():
     center = (lo + hi) / 2
     radius = max(size.length / 2, 0.01)
 
+    displacement = find_displacement(model, os.path.join(os.path.dirname(os.path.abspath(args.out or model)), "textures"))
+    displaced = add_displacement(meshes, displacement, radius) if displacement else 0
+
     hdri = setup_world(args.hdri or builtin_hdri())
     add_floor(size=max(radius * 40, 4))
     add_key_light(center, radius)
@@ -339,6 +407,7 @@ def main():
         "size_m": [round(size.x, 4), round(size.y, 4), round(size.z, 4)],
         "device": device,
         "hdri": hdri,
+        "displacement": displaced,
     }
 
     if args.out:

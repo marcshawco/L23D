@@ -12,6 +12,7 @@ struct HQSendSheet: View {
     @State private var selectedMac: HQMac?
     @State private var pairingCode = ""
     @State private var detail: HQDetail = .full
+    @State private var pending: HQPendingJob?
 
     var body: some View {
         NavigationStack {
@@ -33,7 +34,10 @@ struct HQSendSheet: View {
                 }
             }
             .interactiveDismissDisabled(transfer.phase.isActive)
-            .onAppear { browser.start() }
+            .onAppear {
+                browser.start()
+                pending = HQPendingJob.load(for: scan.id)
+            }
             .onDisappear {
                 browser.stop()
                 UIApplication.shared.isIdleTimerDisabled = false
@@ -49,6 +53,28 @@ struct HQSendSheet: View {
 
     @ViewBuilder
     private var setupSections: some View {
+        if let pending {
+            Section {
+                Button {
+                    Task { await fetchPending(pending) }
+                } label: {
+                    Label("Get Finished Model", systemImage: "arrow.down.circle")
+                        .frame(maxWidth: .infinity)
+                }
+                .disabled(mac(named: pending.macName) == nil || HQPairing.code(for: pending.macName) == nil)
+                Button("Forget It", role: .destructive) {
+                    HQPendingJob.save(nil, for: scan.id)
+                    self.pending = nil
+                }
+            } header: {
+                Text("Waiting on \(pending.macName)")
+            } footer: {
+                Text(mac(named: pending.macName) == nil
+                    ? "An \(pending.detail.title) build was sent to \(pending.macName), but the model never came back. Open L23D HQ on that Mac to get it."
+                    : "An \(pending.detail.title) build was sent to \(pending.macName), but the connection dropped. The Mac kept building, so you can get the model now.")
+            }
+        }
+
         Section {
             if browser.macs.isEmpty {
                 HStack(spacing: 12) {
@@ -151,6 +177,10 @@ struct HQSendSheet: View {
         }
     }
 
+    private func mac(named name: String) -> HQMac? {
+        browser.macs.first { $0.name == name }
+    }
+
     private var isFailed: Bool {
         if case .failed = transfer.phase { true } else { false }
     }
@@ -167,8 +197,34 @@ struct HQSendSheet: View {
         switch transfer.phase {
         case .done:
             HQPairing.save(code, for: mac.name)
-        case .failed(let message) where message.contains("pairing code"):
-            HQPairing.forget(mac.name)
+            HQPendingJob.save(nil, for: scan.id)
+            pending = nil
+        case .failed(let message):
+            if message.contains("pairing code") { HQPairing.forget(mac.name) }
+            // Photos made it over, so the Mac keeps building: remember the job to fetch later.
+            if let jobID = transfer.sentJobID {
+                HQPairing.save(code, for: mac.name)
+                let job = HQPendingJob(jobID: jobID, macName: mac.name, detail: detail)
+                HQPendingJob.save(job, for: scan.id)
+                pending = job
+            }
+        default:
+            break
+        }
+    }
+
+    private func fetchPending(_ job: HQPendingJob) async {
+        guard let mac = mac(named: job.macName), let code = HQPairing.code(for: job.macName) else { return }
+        selectedMac = mac
+        detail = job.detail
+        await transfer.fetch(jobID: job.jobID, endpoint: mac.endpoint, pairingCode: code, destination: scan.folder.hqModelFile)
+        switch transfer.phase {
+        case .done:
+            HQPendingJob.save(nil, for: scan.id)
+            pending = nil
+        case .failed(let message) where message.contains("doesn't have that build"):
+            HQPendingJob.save(nil, for: scan.id)
+            pending = nil
         default:
             break
         }
