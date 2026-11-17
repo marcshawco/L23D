@@ -77,6 +77,28 @@ enum MeshLoader {
             indices.append(contentsOf: UnsafeBufferPointer(start: pointer, count: submesh.indexCount))
         }
 
+        // A file can't be trusted to only point at vertices that exist.
+        guard indices.allSatisfy({ Int($0) < count }) else {
+            throw MeshError.unreadable("mesh points at vertices that don't exist")
+        }
+        // Drop vertices no triangle uses. Their data can be junk (never written by whoever made
+        // the mesh), which would throw off the model's measured size.
+        var used = [Bool](repeating: false, count: count)
+        for index in indices { used[Int(index)] = true }
+        if used.contains(false) {
+            var remap = [UInt32](repeating: 0, count: count)
+            var kept: [Int] = []
+            kept.reserveCapacity(count)
+            for v in 0..<count where used[v] {
+                remap[v] = UInt32(kept.count)
+                kept.append(v)
+            }
+            positions = kept.map { positions[$0] }
+            if normals.count == count { normals = kept.map { normals[$0] } }
+            if uvs.count == count { uvs = kept.map { uvs[$0] } }
+            indices = indices.map { remap[Int($0)] }
+        }
+
         return MeshData(positions: positions, normals: normals, uvs: uvs, indices: indices, material: MaterialData())
     }
 

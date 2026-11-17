@@ -195,9 +195,15 @@ final class HQTransfer {
                 phase = .building(progress.fraction, progress.stage)
             case .resultHeader:
                 let header = try JSONDecoder().decode(HQResultHeader.self, from: message.payload)
+                // Don't let the other side fill the phone: cap the size and check free space first.
+                guard header.size > 0, header.size <= HQ.maxResultSize else { throw HQTransferError.tooLarge }
+                if let free = HQ.freeSpace(at: destination.deletingLastPathComponent()), header.size > free - HQ.diskReserve {
+                    throw HQTransferError.notEnoughSpace
+                }
                 phase = .downloading(0)
                 let temporary = destination.deletingLastPathComponent().appending(path: "incoming-hq.usdz")
-                try await connection.receiveFile(.resultData, to: temporary) { [weak self] bytes in
+                defer { try? FileManager.default.removeItem(at: temporary) }
+                try await connection.receiveFile(.resultData, to: temporary, exactLength: header.size) { [weak self] bytes in
                     let fraction = Double(bytes) / Double(max(header.size, 1))
                     Task { @MainActor in self?.phase = .downloading(fraction) }
                 }

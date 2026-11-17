@@ -117,13 +117,14 @@ final class ReconstructionCenter {
 
         do {
             try FileManager.default.createDirectory(at: folder.modelDirectory, withIntermediateDirectories: true)
-            if folder.hasModel {
-                try FileManager.default.removeItem(at: folder.modelFile)
-            }
+            // Build into a side file, so a failed rebuild keeps the model we already have.
+            let building = folder.modelDirectory.appending(path: "model-building.usdz")
+            try? FileManager.default.removeItem(at: building)
+            defer { try? FileManager.default.removeItem(at: building) }
 
             let session = try ReconstructionSetup.makeSession(for: folder)
             job.session = session
-            try session.process(requests: [.modelFile(url: folder.modelFile)])
+            try session.process(requests: [.modelFile(url: building)])
 
             var requestError: (any Error)?
             var wasCancelled = false
@@ -169,9 +170,13 @@ final class ReconstructionCenter {
             if let requestError {
                 throw requestError
             }
-            guard folder.hasModel else {
+            guard FileManager.default.fileExists(atPath: building.path(percentEncoded: false)) else {
                 throw ReconstructionError.noModelProduced
             }
+            if folder.hasModel {
+                try FileManager.default.removeItem(at: folder.modelFile)
+            }
+            try FileManager.default.moveItem(at: building, to: folder.modelFile)
 
             job.stage = "Finishing up"
             let stats = try? await ModelInspector.stats(for: folder.modelFile)

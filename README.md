@@ -2,7 +2,7 @@
 
 An iPhone app that scans objects and people into textured 3D models you can use in games and 3D editors (Blender, Unity, Godot, Unreal).
 
-**Status:** v0.10.0. All v1 features are built (three scan modes, on-phone building, game export), plus **HQ mode**: build Medium/Full/Raw/Ultra detail models on your Mac over Wi-Fi, and a photoreal Blender scene for each one. **Nothing that uses the camera has been tested on a real iPhone yet** — v1.0.0 will be tagged after that test. See "What works now" below.
+**Status:** v0.10.1. All v1 features are built (three scan modes, on-phone building, game export), plus **HQ mode**: build Medium/Full/Raw/Ultra detail models on your Mac over Wi-Fi, and a photoreal Blender scene for each one. **Nothing that uses the camera has been tested on a real iPhone yet** — v1.0.0 will be tagged after that test. See "What works now" below.
 
 ## HQ mode (build on your Mac)
 
@@ -15,7 +15,7 @@ On iPhone, Apple only allows "reduced" detail. A Mac can build **Medium**, **Ful
 3. On the iPhone, open a finished scan → **•••** → **Build HQ on Mac…**. Pick your Mac, type the code (saved after the first time), pick a detail level, and tap **Send**.
 4. The photos go over your Wi-Fi, the Mac builds, and the HQ model comes back by itself. The viewer, AR, share, and export then use the HQ model. **••• → Use Phone Model** switches back.
 
-Both devices must be on the same Wi-Fi. If the connection drops after the photos are sent, the Mac keeps building: open **Build HQ on Mac…** again and tap **Get Finished Model**. Builds run one at a time on the Mac. Received scans are kept in `~/Library/Application Support/L23D HQ/Jobs` (the window's **Show Jobs Folder** button).
+After 5 wrong pairing codes the Mac pauses pairing for 5 minutes (press **New Code** to reset). Both devices must be on the same Wi-Fi. If the connection drops after the photos are sent, the Mac keeps building: open **Build HQ on Mac…** again and tap **Get Finished Model**. Builds run one at a time on the Mac. Received scans are kept in `~/Library/Application Support/L23D HQ/Jobs` (the window's **Show Jobs Folder** button).
 
 ## Blender (photoreal)
 

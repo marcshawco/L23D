@@ -26,6 +26,24 @@ struct PersonCaptureManifest: Codable, Sendable, Equatable {
 
     var mode: String
     var frames: [Frame] = []
+
+    struct UnsafePath: LocalizedError {
+        var path: String
+        var errorDescription: String? { "The scan's frame list points to a file outside the scan: \(path)" }
+    }
+
+    /// Photos must be in `Images/`, masks in `Masks/`, depth in `Depth/` — nothing else.
+    func validatePaths() throws {
+        func check(_ path: String?, in directory: String) throws {
+            guard let path else { return }
+            guard HQPackage.isSafe(path), path.hasPrefix(directory + "/") else { throw UnsafePath(path: path) }
+        }
+        for frame in frames {
+            try check(frame.image, in: "Images")
+            try check(frame.mask, in: "Masks")
+            try check(frame.depth, in: "Depth")
+        }
+    }
 }
 
 /// Writes frames to disk while capturing. Use from one queue only.
@@ -125,8 +143,12 @@ final class PersonFrameStore {
         return ImageCoding.png(image)
     }
 
+    /// Loads the frame list and refuses any file path that could point outside the scan
+    /// folder. On the Mac this file comes from another device, so it is not trusted.
     static func loadManifest(from folder: ScanFolder) throws -> PersonCaptureManifest {
-        try JSONDecoder().decode(PersonCaptureManifest.self, from: Data(contentsOf: folder.personManifest))
+        let manifest = try JSONDecoder().decode(PersonCaptureManifest.self, from: Data(contentsOf: folder.personManifest))
+        try manifest.validatePaths()
+        return manifest
     }
 }
 

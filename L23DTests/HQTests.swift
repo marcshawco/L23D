@@ -172,6 +172,165 @@ extension HQLoopbackTests {
     }
 }
 
+extension HQLoopbackTests {
+    @Test func wrongCodesLockPairingEvenForTheRightCode() async throws {
+        let jobs = FileManager.default.temporaryDirectory.appending(path: "hq-server-\(UUID().uuidString)")
+        let server = HQServer(pairingCode: "123456", jobsDirectory: jobs, builder: FakeBuilder(), maxWrongCodes: 2, lockout: .seconds(600)) { _ in }
+        let port = try await server.start(serviceName: nil)
+        defer { server.stop(); try? FileManager.default.removeItem(at: jobs) }
+        let folder = try makeScanFolder()
+        defer { try? FileManager.default.removeItem(at: folder.root.deletingLastPathComponent()) }
+
+        func attempt(_ code: String) async -> String {
+            let transfer = HQTransfer()
+            await transfer.run(
+                folder: folder, scanName: "Test", mode: .object, detail: .medium,
+                endpoint: local(port), pairingCode: code, destination: folder.hqModelFile, deviceName: "Guesser"
+            )
+            if case .failed(let message) = transfer.phase { return message }
+            return "ok"
+        }
+        #expect(await attempt("000000").contains("Wrong pairing code"))
+        #expect(await attempt("000001").contains("Wrong pairing code"))
+        // Now locked: the right code is refused too.
+        #expect(await attempt("123456").contains("Too many wrong pairing codes"))
+        #expect(!folder.hasHQModel)
+    }
+
+    /// Talks to the server by hand, to send things the real app never would.
+    private func rawUpload(port: UInt16, job: HQJobStart, path: String, announced: Int64, data: Data) async throws -> String {
+        let connection = HQConnection(NWConnection(to: local(port), using: .tcp))
+        defer { connection.cancel() }
+        try await connection.start()
+        try await connection.send(.hello, json: HQHello(version: HQ.protocolVersion, pairingCode: "123456", deviceName: "Raw"))
+        _ = try await connection.receiveMessage()
+        try await connection.send(.jobStart, json: job)
+        try await connection.send(.fileHeader, json: HQFileHeader(path: path, size: announced))
+        try await connection.send(.fileData, payload: data)
+        do {
+            _ = try await connection.receiveMessage()
+            return "no error"
+        } catch {
+            return (error as? LocalizedError)?.errorDescription ?? "\(error)"
+        }
+    }
+
+    @Test func uploadsOutsideTheScanFoldersAreRefused() async throws {
+        let (server, port, jobs) = try await startServer(code: "123456", builder: FakeBuilder())
+        defer { server.stop(); try? FileManager.default.removeItem(at: jobs) }
+
+        let job = HQJobStart(jobID: UUID(), scanName: "Evil", mode: "object", detail: .full, fileCount: 1, totalBytes: 3)
+        let message = try await rawUpload(port: port, job: job, path: "Model/model-full.usdz", announced: 3, data: Data([1, 2, 3]))
+        #expect(message.contains("unsafe file path"))
+        // Nothing of the refused job stays on disk.
+        #expect(!FileManager.default.fileExists(atPath: jobs.appending(path: job.jobID.uuidString).path(percentEncoded: false)))
+    }
+
+    @Test func filesLargerThanAnnouncedAreRefused() async throws {
+        let (server, port, jobs) = try await startServer(code: "123456", builder: FakeBuilder())
+        defer { server.stop(); try? FileManager.default.removeItem(at: jobs) }
+
+        let job = HQJobStart(jobID: UUID(), scanName: "Big", mode: "object", detail: .full, fileCount: 1, totalBytes: 3)
+        let lied = try await rawUpload(port: port, job: job, path: "Images/0001.jpg", announced: 3, data: Data(repeating: 1, count: 5000))
+        #expect(lied.contains("not the size"))
+
+        let huge = HQJobStart(jobID: UUID(), scanName: "Huge", mode: "object", detail: .full, fileCount: 1, totalBytes: HQ.maxJobSize + 1)
+        let refused = try await rawUpload(port: port, job: huge, path: "Images/0001.jpg", announced: 1, data: Data([1]))
+        #expect(refused.contains("larger than allowed"))
+    }
+
+    @Test func aJobIDCanOnlyBeUsedOnce() async throws {
+        let builder = FakeBuilder()
+        let (server, port, jobs) = try await startServer(code: "123456", builder: builder)
+        defer { server.stop(); try? FileManager.default.removeItem(at: jobs) }
+        let folder = try makeScanFolder()
+        defer { try? FileManager.default.removeItem(at: folder.root.deletingLastPathComponent()) }
+
+        let transfer = HQTransfer()
+        await transfer.run(
+            folder: folder, scanName: "Test", mode: .object, detail: .full,
+            endpoint: local(port), pairingCode: "123456", destination: folder.hqModelFile, deviceName: "Test iPhone"
+        )
+        let jobID = try #require(transfer.sentJobID)
+        let again = HQJobStart(jobID: jobID, scanName: "Again", mode: "object", detail: .full, fileCount: 1, totalBytes: 1)
+        let message = try await rawUpload(port: port, job: again, path: "Images/0001.jpg", announced: 1, data: Data([1]))
+        #expect(message.contains("already sent"))
+        // The first job's photos are untouched.
+        #expect(FileManager.default.fileExists(atPath: jobs.appending(path: jobID.uuidString).appending(path: "Images/0002.jpg").path(percentEncoded: false)))
+    }
+}
+
+struct HQGuardTests {
+    @Test func lockoutEndsAfterTheWait() async {
+        let guardrail = HQPairingGuard(maxWrongCodes: 3, lockout: .seconds(60))
+        let start = ContinuousClock.now
+        #expect(await guardrail.check(code: "1", against: "9", now: start) == .wrong)
+        #expect(await guardrail.check(code: "9", against: "9", now: start) == .accepted) // a right code resets the count
+        for _ in 0..<3 { #expect(await guardrail.check(code: "1", against: "9", now: start) == .wrong) }
+        #expect(await guardrail.check(code: "9", against: "9", now: start + .seconds(10)) == .lockedOut(seconds: 51))
+        #expect(await guardrail.check(code: "9", against: "9", now: start + .seconds(61)) == .accepted)
+    }
+
+    @Test func onlyAFewUnpairedConnectionsAtOnce() async {
+        let guardrail = HQPairingGuard()
+        for _ in 0..<HQ.maxUnpairedConnections { #expect(await guardrail.beginUnpaired()) }
+        #expect(await guardrail.beginUnpaired() == false)
+        await guardrail.endUnpaired()
+        #expect(await guardrail.beginUnpaired())
+    }
+
+    @Test func uploadsAreLimitedToScanFolders() {
+        for path in ["Images/0001.jpg", "Masks/0001.png", "Depth/0001.bin", "Checkpoint/a/b.dat", "frames.json"] {
+            #expect(HQPackage.isAllowedUpload(path))
+        }
+        for path in ["Model/model.usdz", "Blender/scene.blend", "thumbnail.jpg", "Images/../Model/x", "/etc/passwd", "Images"] {
+            #expect(!HQPackage.isAllowedUpload(path))
+        }
+    }
+
+    @Test func frameListCannotPointOutsideTheScan() throws {
+        func manifest(image: String, mask: String? = nil, depth: String? = nil) -> PersonCaptureManifest {
+            PersonCaptureManifest(mode: "personHelper", frames: [
+                .init(index: 1, image: image, mask: mask, depth: depth, depthWidth: 0, depthHeight: 0, cameraTransform: nil, ring: 0, slice: 0),
+            ])
+        }
+        try manifest(image: "Images/0001.jpg", mask: "Masks/0001.png", depth: "Depth/0001.bin").validatePaths()
+        #expect(throws: PersonCaptureManifest.UnsafePath.self) { try manifest(image: "../../../Pictures/private.jpg").validatePaths() }
+        #expect(throws: PersonCaptureManifest.UnsafePath.self) { try manifest(image: "/Users/me/private.jpg").validatePaths() }
+        #expect(throws: PersonCaptureManifest.UnsafePath.self) { try manifest(image: "Model/model.usdz").validatePaths() }
+        #expect(throws: PersonCaptureManifest.UnsafePath.self) { try manifest(image: "Images/1.jpg", mask: "Images/../../x.png").validatePaths() }
+        #expect(throws: PersonCaptureManifest.UnsafePath.self) { try manifest(image: "Images/1.jpg", depth: "Masks/1.bin").validatePaths() }
+
+        // Loading from disk checks too.
+        let base = FileManager.default.temporaryDirectory.appending(path: "manifest-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: base) }
+        let folder = ScanStore.folder(for: UUID(), base: base)
+        try folder.create()
+        try JSONEncoder().encode(manifest(image: "../../secret.jpg")).write(to: folder.personManifest)
+        #expect(throws: PersonCaptureManifest.UnsafePath.self) { try PersonFrameStore.loadManifest(from: folder) }
+    }
+
+    @Test func damagedZipDoesNotCrash() {
+        var writer = ZipWriter(alignment: 64)
+        writer.add(name: "a.txt", data: Data("hello".utf8))
+        writer.add(name: "b.txt", data: Data("world".utf8))
+        let good = writer.finish()
+        #expect(ZipReader.storedEntries(in: good).map(\.name) == ["a.txt", "b.txt"])
+
+        // Flip every byte in turn to 0xFF, and cut the file at every length: must never crash.
+        var bytes = [UInt8](good)
+        for i in bytes.indices {
+            let saved = bytes[i]
+            bytes[i] = 0xFF
+            _ = ZipReader.storedEntries(in: Data(bytes))
+            bytes[i] = saved
+        }
+        for length in 0..<good.count {
+            _ = ZipReader.storedEntries(in: good.prefix(length))
+        }
+    }
+}
+
 struct HQProtocolTests {
     @Test func headerRoundTrips() {
         let header = HQMessageHeader(type: .fileData, length: 5_000_000_123)

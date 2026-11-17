@@ -4,7 +4,9 @@ import RealityKit
 /// Builds received scans on the Mac with Apple's photogrammetry at Medium / Full / Raw detail.
 /// One job at a time — each build already uses the whole GPU.
 final class PhotogrammetryBuilder: HQBuilder {
-    private let gate = SerialGate()
+    /// Shared by every builder (iPhone jobs and photo-folder jobs), so only one build runs at a time.
+    private static let gate = SerialGate()
+    private var gate: SerialGate { Self.gate }
 
     func build(job: HQJobStart, folder: ScanFolder, progress: @escaping @Sendable (HQProgress) -> Void) async throws -> URL {
         progress(HQProgress(fraction: 0, stage: "Waiting for the Mac to be free"))

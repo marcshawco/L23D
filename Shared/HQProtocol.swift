@@ -25,6 +25,30 @@ enum HQ {
     static let chunkSize = 1 << 20
     /// Largest JSON/small message we accept in memory.
     static let maxInMemoryMessage: UInt64 = 16 << 20
+
+    // Limits that keep a misbehaving device from tying up or filling the other one.
+    /// The first message (hello) must be tiny and arrive quickly.
+    static let maxHelloSize: UInt64 = 4096
+    static let helloTimeout: Duration = .seconds(10)
+    /// Connections that have not given the pairing code yet.
+    static let maxUnpairedConnections = 8
+    /// Wrong pairing codes in a row before the Mac stops accepting codes for a while.
+    static let maxWrongCodes = 5
+    static let lockout: Duration = .seconds(300)
+    /// Upload limits for one job.
+    static let maxFilesPerJob = 5000
+    static let maxFileSize: Int64 = 1 << 30          // 1 GB per file
+    static let maxJobSize: Int64 = 100 << 30         // 100 GB per job
+    /// Largest model the iPhone accepts back.
+    static let maxResultSize: Int64 = 8 << 30        // 8 GB
+    /// Free space to leave on the disk after a transfer.
+    static let diskReserve: Int64 = 2 << 30
+
+    /// Free space for "important" use on the volume holding `url`, if known.
+    static func freeSpace(at url: URL) -> Int64? {
+        let free = (try? url.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]))?.volumeAvailableCapacityForImportantUsage
+        return free.flatMap { $0 > 0 ? $0 : nil } // 0 means "unknown" on some systems
+    }
 }
 
 enum HQDetail: String, Codable, CaseIterable, Identifiable, Sendable {
@@ -159,14 +183,22 @@ enum HQTransferError: LocalizedError {
     case closed
     case unexpected(HQMessageType?, expected: HQMessageType)
     case tooLarge
+    case sizeMismatch
     case badPath(String)
     case wrongVersion
+    case timedOut
+    case notEnoughSpace
+    case tooManyFiles
 
     var errorDescription: String? {
         switch self {
         case .closed: "The connection closed."
         case .unexpected(let got, let expected): "Unexpected message \(got.map { "\($0)" } ?? "unknown") (wanted \(expected))."
-        case .tooLarge: "A message was too large."
+        case .tooLarge: "A file or message was larger than allowed."
+        case .sizeMismatch: "A file was not the size that was announced."
+        case .timedOut: "The other device took too long to answer."
+        case .notEnoughSpace: "Not enough free storage for this transfer."
+        case .tooManyFiles: "The scan has more files than allowed."
         case .badPath(let path): "Refused an unsafe file path: \(path)"
         case .wrongVersion: "The iPhone and Mac apps are different versions. Update both."
         }
@@ -249,9 +281,9 @@ final class HQConnection: @unchecked Sendable {
     }
 
     /// Receives one small message. Error messages from the other side are thrown.
-    func receiveMessage() async throws -> (type: HQMessageType?, payload: Data) {
+    func receiveMessage(maxLength: UInt64 = HQ.maxInMemoryMessage) async throws -> (type: HQMessageType?, payload: Data) {
         let header = try await receiveHeader()
-        guard header.length <= HQ.maxInMemoryMessage else { throw HQTransferError.tooLarge }
+        guard header.length <= maxLength else { throw HQTransferError.tooLarge }
         let payload = header.length == 0 ? Data() : try await receiveExactly(Int(header.length))
         if header.type == .error, let error = try? JSONDecoder().decode(HQErrorMessage.self, from: payload) {
             throw error
@@ -259,20 +291,27 @@ final class HQConnection: @unchecked Sendable {
         return (header.type, payload)
     }
 
-    func receiveJSON<T: Decodable>(_ type: HQMessageType, as: T.Type) async throws -> T {
-        let message = try await receiveMessage()
+    func receiveJSON<T: Decodable>(_ type: HQMessageType, as: T.Type, maxLength: UInt64 = HQ.maxInMemoryMessage) async throws -> T {
+        let message = try await receiveMessage(maxLength: maxLength)
         guard message.type == type else { throw HQTransferError.unexpected(message.type, expected: type) }
         return try JSONDecoder().decode(T.self, from: message.payload)
     }
 
     /// Receives the next message, which must be `type`, streaming its bytes into `url`.
-    func receiveFile(_ type: HQMessageType, to url: URL, progress: (@Sendable (Int64) -> Void)? = nil) async throws {
+    /// - Parameter maxLength: refuse (before writing anything) a file longer than this.
+    /// - Parameter exactLength: if set, the file must be exactly this long (what the sender announced).
+    func receiveFile(
+        _ type: HQMessageType, to url: URL, maxLength: Int64? = nil, exactLength: Int64? = nil,
+        progress: (@Sendable (Int64) -> Void)? = nil
+    ) async throws {
         let header = try await receiveHeader()
         if header.type == .error {
             let payload = try await receiveExactly(Int(min(header.length, HQ.maxInMemoryMessage)))
             throw (try? JSONDecoder().decode(HQErrorMessage.self, from: payload)) ?? HQTransferError.closed
         }
         guard header.type == type else { throw HQTransferError.unexpected(header.type, expected: type) }
+        if let maxLength, header.length > UInt64(max(maxLength, 0)) { throw HQTransferError.tooLarge }
+        if let exactLength, header.length != UInt64(max(exactLength, 0)) { throw HQTransferError.sizeMismatch }
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         FileManager.default.createFile(atPath: url.path(percentEncoded: false), contents: nil)
         let handle = try FileHandle(forWritingTo: url)
@@ -286,6 +325,25 @@ final class HQConnection: @unchecked Sendable {
             received += Int64(chunk.count)
             progress?(received)
         }
+    }
+
+    /// Reads and throws away whatever the other side is still sending, for up to `duration`
+    /// or until it closes. Closing while unread data is waiting makes the system reset the
+    /// connection, and the other side then never sees the error message we just sent.
+    func discardIncoming(for duration: Duration) async {
+        let deadline = Task {
+            try await Task.sleep(for: duration)
+            connection.cancel()
+        }
+        var open = true
+        while open {
+            open = await withCheckedContinuation { continuation in
+                connection.receive(minimumIncompleteLength: 1, maximumLength: HQ.chunkSize) { data, _, isComplete, error in
+                    continuation.resume(returning: error == nil && !isComplete && data?.isEmpty == false)
+                }
+            }
+        }
+        deadline.cancel()
     }
 
     private func receiveExactly(_ count: Int) async throws -> Data {
@@ -352,6 +410,14 @@ enum HQPackage {
             files.append(File(path: "frames.json", url: folder.personManifest, size: Int64(size)))
         }
         return files.sorted { $0.path < $1.path }
+    }
+
+    /// What an iPhone may upload: photos, masks, depth, the checkpoint, and the frame list.
+    /// Nothing may land in `Model/`, `Blender/` or anywhere else in the job folder.
+    static func isAllowedUpload(_ path: String) -> Bool {
+        guard isSafe(path) else { return false }
+        if path == "frames.json" { return true }
+        return ["Images/", "Masks/", "Depth/", "Checkpoint/"].contains { path.hasPrefix($0) }
     }
 
     /// Only plain relative paths inside the scan folder are allowed.

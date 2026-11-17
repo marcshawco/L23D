@@ -109,6 +109,7 @@ enum ZipReader {
         guard eocd >= 0 else { return [] }
         let count = Int(bytes.readLE16(at: eocd + 10))
         var cursor = Int(bytes.readLE32(at: eocd + 16))
+        guard cursor <= bytes.count else { return [] }
 
         var entries: [Entry] = []
         for _ in 0..<count {
@@ -119,6 +120,8 @@ enum ZipReader {
             let extraLength = Int(bytes.readLE16(at: cursor + 30))
             let commentLength = Int(bytes.readLE16(at: cursor + 32))
             let localOffset = Int(bytes.readLE32(at: cursor + 42))
+            // A damaged or hostile archive can claim lengths past the end of the file.
+            guard cursor + 46 + nameLength + extraLength + commentLength <= bytes.count else { break }
             let name = String(decoding: bytes[(cursor + 46)..<(cursor + 46 + nameLength)], as: UTF8.self)
             cursor += 46 + nameLength + extraLength + commentLength
 
